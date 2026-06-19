@@ -1,0 +1,10 @@
+{
+    "MetaData": {
+        "PluginId": "chatbox-v0.0.1",
+        "Version": "0.0.1",
+        "Name": "chatbox",
+        "Description": "this plugin provided a chatbox widget for the framework",
+        "Author": "hehehunanchina@live.com",
+        "Dependencies": []
+    }
+}

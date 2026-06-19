@@ -1,0 +1,250 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+env:
+  PROJECT_NAME: chatbox
+  QT_VERSION: '6.9.3'
+  QT_MIRROR_BASE: 'https://download.qt.io'
+
+jobs:
+  build-windows-x64:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          arch: 'win64_msvc2022_64'
+          cache: true
+          aqtversion: '==3.3.*'
+          extra: '--base ${{ env.QT_MIRROR_BASE }} --timeout 30'
+
+      - name: Create build directory
+        run: mkdir build
+
+      - name: Configure CMake
+        run: |
+          cd build
+          for /f "usebackq delims=" %%i in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do set "VS_PATH=%%i"
+          if not defined VS_PATH exit /b 1
+          call "%VS_PATH%\VC\Auxiliary\Build\vcvars64.bat"
+          cmake -G "Ninja" -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl ..
+        shell: cmd
+
+      - name: Build
+        run: |
+          cd build
+          for /f "usebackq delims=" %%i in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do set "VS_PATH=%%i"
+          if not defined VS_PATH exit /b 1
+          call "%VS_PATH%\VC\Auxiliary\Build\vcvars64.bat"
+          cmake --build .
+        shell: cmd
+
+      - name: Prepare package
+        run: |
+          New-Item -ItemType Directory -Path "release_package/plugins/chatbox" -Force | Out-Null
+          Copy-Item "bin/Release/plugins/chatbox/*" -Destination "release_package/plugins/chatbox/" -Recurse -Exclude "*.exp","*.lib","*.pdb"
+        shell: pwsh
+
+      - name: Package
+        run: |
+          $tag = "${{ github.ref }}".Split('/')[-1]
+          $zipname = "${{ env.PROJECT_NAME }}-windows-x64-${tag}.zip"
+          Compress-Archive -Path release_package/* -DestinationPath "$zipname"
+        shell: pwsh
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.PROJECT_NAME }}-windows-x64
+          path: ${{ env.PROJECT_NAME }}-windows-x64-*.zip
+
+  build-linux-x64:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          arch: 'linux_gcc_64'
+          cache: true
+          aqtversion: '==3.3.*'
+          extra: '--base ${{ env.QT_MIRROR_BASE }} --timeout 30'
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake build-essential zip
+
+      - name: Create build directory
+        run: mkdir build
+
+      - name: Configure CMake
+        run: |
+          cd build
+          cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=g++ -DCMAKE_C_COMPILER=gcc ..
+
+      - name: Build
+        run: |
+          cd build
+          cmake --build . --config Release
+
+      - name: Prepare package
+        run: |
+          mkdir -p release_package/plugins/chatbox
+          cp -r build/plugins/chatbox/*.so* release_package/plugins/chatbox/ 2>/dev/null || true
+
+      - name: Package
+        run: |
+          tag="${{ github.ref }}"
+          tag="${tag##*/}"
+          zipname="${{ env.PROJECT_NAME }}-linux-x64-${tag}.zip"
+          zip -r "${zipname}" release_package
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.PROJECT_NAME }}-linux-x64
+          path: ${{ env.PROJECT_NAME }}-linux-x64-*.zip
+
+  build-macos-arm64:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          arch: 'clang_64'
+          cache: true
+          aqtversion: '==3.3.*'
+          extra: '--base ${{ env.QT_MIRROR_BASE }} --timeout 30'
+
+      - name: Install dependencies
+        run: |
+          brew install cmake
+
+      - name: Create build directory
+        run: mkdir build
+
+      - name: Configure CMake
+        run: |
+          cd build
+          cmake -DCMAKE_BUILD_TYPE=Release \
+                -DCMAKE_OSX_ARCHITECTURES=arm64 \
+                -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0 ..
+
+      - name: Build
+        run: |
+          cd build
+          cmake --build . --config Release
+
+      - name: Prepare package
+        run: |
+          mkdir -p release_package/plugins/chatbox
+          cp -r build/plugins/chatbox/*.dylib release_package/plugins/chatbox/ 2>/dev/null || true
+
+      - name: Package
+        run: |
+          tag="${{ github.ref }}"
+          tag="${tag##*/}"
+          zipname="${{ env.PROJECT_NAME }}-mac-arm64-${tag}.zip"
+          zip -r "${zipname}" release_package
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.PROJECT_NAME }}-mac-arm64
+          path: ${{ env.PROJECT_NAME }}-mac-arm64-*.zip
+
+  build-macos-x64:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          arch: 'clang_64'
+          cache: true
+          aqtversion: '==3.3.*'
+          extra: '--base ${{ env.QT_MIRROR_BASE }} --timeout 30'
+
+      - name: Install dependencies
+        run: |
+          brew install cmake
+
+      - name: Create build directory
+        run: mkdir build
+
+      - name: Configure CMake
+        run: |
+          cd build
+          cmake -DCMAKE_BUILD_TYPE=Release \
+                -DCMAKE_OSX_ARCHITECTURES=x86_64 \
+                -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0 ..
+
+      - name: Build
+        run: |
+          cd build
+          cmake --build . --config Release
+
+      - name: Prepare package
+        run: |
+          mkdir -p release_package/plugins/chatbox
+          cp -r build/plugins/chatbox/*.dylib release_package/plugins/chatbox/ 2>/dev/null || true
+
+      - name: Package
+        run: |
+          tag="${{ github.ref }}"
+          tag="${tag##*/}"
+          zipname="${{ env.PROJECT_NAME }}-mac-x64-${tag}.zip"
+          zip -r "${zipname}" release_package
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.PROJECT_NAME }}-mac-x64
+          path: ${{ env.PROJECT_NAME }}-mac-x64-*.zip
+
+  create-release:
+    needs: [build-windows-x64, build-linux-x64, build-macos-arm64, build-macos-x64]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ${{ env.PROJECT_NAME }}-windows-x64/${{ env.PROJECT_NAME }}-windows-x64-*.zip
+            ${{ env.PROJECT_NAME }}-linux-x64/${{ env.PROJECT_NAME }}-linux-x64-*.zip
+            ${{ env.PROJECT_NAME }}-mac-arm64/${{ env.PROJECT_NAME }}-mac-arm64-*.zip
+            ${{ env.PROJECT_NAME }}-mac-x64/${{ env.PROJECT_NAME }}-mac-x64-*.zip
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+

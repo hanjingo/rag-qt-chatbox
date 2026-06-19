@@ -1,2 +1,2 @@
-# rag-qt-chatbox
-chatbox plugin for rag-qt
+# chatbox
+Plugin For Rag-QtChat Box
