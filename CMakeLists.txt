@@ -27,8 +27,11 @@ endif()
 if (NOT EXECUTABLE_OUTPUT_PATH)
     set(EXECUTABLE_OUTPUT_PATH ${CMAKE_SOURCE_DIR}/bin/${CMAKE_BUILD_TYPE})
 endif()
-if (NOT CHATBOX_OUTPUT_PATH)
-    set(CHATBOX_OUTPUT_PATH ${EXECUTABLE_OUTPUT_PATH}/plugins/chatbox)
+if (NOT LIBRARY_OUTPUT_DIRECTORY)
+    set(LIBRARY_OUTPUT_DIRECTORY ${EXECUTABLE_OUTPUT_PATH})
+endif()
+if (NOT RUNTIME_OUTPUT_DIRECTORY)
+    set(RUNTIME_OUTPUT_DIRECTORY ${EXECUTABLE_OUTPUT_PATH})
 endif()
 
 # print build info
@@ -74,8 +77,8 @@ target_compile_definitions(chatbox PRIVATE CHATBOX_LIBRARY)
 # Export all symbols for Windows DLL
 set_target_properties(chatbox PROPERTIES 
     WINDOWS_EXPORT_ALL_SYMBOLS ON
-    LIBRARY_OUTPUT_DIRECTORY "${CHATBOX_OUTPUT_PATH}"
-    RUNTIME_OUTPUT_DIRECTORY "${CHATBOX_OUTPUT_PATH}"
+    LIBRARY_OUTPUT_DIRECTORY "${LIBRARY_OUTPUT_DIRECTORY}"
+    RUNTIME_OUTPUT_DIRECTORY "${RUNTIME_OUTPUT_DIRECTORY}"
 )
 
 # ----------------------------------------------------------------------------
@@ -88,12 +91,12 @@ file(GLOB CHATBOX_RESOURCE_FILES CONFIGURE_DEPENDS
 )
 if (CHATBOX_RESOURCE_FILES)
     add_custom_target(chatbox_copy_resources ALL
-        COMMAND ${CMAKE_COMMAND} -E make_directory "${CHATBOX_OUTPUT_PATH}"
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${LIBRARY_OUTPUT_DIRECTORY}"
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
             ${CHATBOX_RESOURCE_FILES}
-            "${CHATBOX_OUTPUT_PATH}"
+            "${LIBRARY_OUTPUT_DIRECTORY}"
         DEPENDS ${CHATBOX_RESOURCE_FILES}
-        COMMENT "Copying chatbox resource files to output dir"
+        COMMENT "Copying chatbox resource files to output dir ${LIBRARY_OUTPUT_DIRECTORY}"
     )
 else()
     message(STATUS "No chatbox resource files to copy for ${PROJECT_NAME}")

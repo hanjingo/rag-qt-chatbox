@@ -53,8 +53,8 @@ jobs:
 
       - name: Prepare package
         run: |
-          New-Item -ItemType Directory -Path "release_package/plugins/chatbox" -Force | Out-Null
-          Copy-Item "bin/Release/plugins/chatbox/*" -Destination "release_package/plugins/chatbox/" -Recurse -Exclude "*.exp","*.lib","*.pdb"
+          New-Item -ItemType Directory -Path "release_package" -Force | Out-Null
+          Copy-Item "bin/Release/*" -Destination "release_package/" -Recurse -Exclude "*.exp","*.lib","*.pdb"
         shell: pwsh
 
       - name: Package
@@ -106,15 +106,17 @@ jobs:
 
       - name: Prepare package
         run: |
-          mkdir -p release_package/plugins/chatbox
-          cp -r build/plugins/chatbox/*.so* release_package/plugins/chatbox/ 2>/dev/null || true
+          mkdir -p release_package
+          cp -r bin/Release/* release_package/ 2>/dev/null || true
 
       - name: Package
         run: |
           tag="${{ github.ref }}"
           tag="${tag##*/}"
           zipname="${{ env.PROJECT_NAME }}-linux-x64-${tag}.zip"
-          zip -r "${zipname}" release_package
+          echo "=== show release_package struct ===" && ls -R release_package
+          cd release_package
+          zip -r "../${zipname}" *
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -159,15 +161,16 @@ jobs:
 
       - name: Prepare package
         run: |
-          mkdir -p release_package/plugins/chatbox
-          cp -r build/plugins/chatbox/*.dylib release_package/plugins/chatbox/ 2>/dev/null || true
+          mkdir -p release_package
+          cp -r bin/Release/* release_package/ 2>/dev/null || true
 
       - name: Package
         run: |
           tag="${{ github.ref }}"
           tag="${tag##*/}"
           zipname="${{ env.PROJECT_NAME }}-mac-arm64-${tag}.zip"
-          zip -r "${zipname}" release_package
+          cd release_package
+          zip -r "../${zipname}" *
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -212,15 +215,16 @@ jobs:
 
       - name: Prepare package
         run: |
-          mkdir -p release_package/plugins/chatbox
-          cp -r build/plugins/chatbox/*.dylib release_package/plugins/chatbox/ 2>/dev/null || true
+          mkdir -p release_package
+          cp -r bin/Release/* release_package/ 2>/dev/null || true
 
       - name: Package
         run: |
           tag="${{ github.ref }}"
           tag="${tag##*/}"
           zipname="${{ env.PROJECT_NAME }}-mac-x64-${tag}.zip"
-          zip -r "${zipname}" release_package
+          cd release_package
+          zip -r "../${zipname}" *
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4

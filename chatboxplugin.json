@@ -1,10 +1,9 @@
 {
-    "MetaData": {
-        "PluginId": "chatbox-v0.0.1",
-        "Version": "0.0.1",
-        "Name": "chatbox",
-        "Description": "this plugin provided a chatbox widget for the framework",
-        "Author": "hehehunanchina@live.com",
-        "Dependencies": []
-    }
+    "PluginId": "chatbox-v0.0.1",
+    "Version": "0.0.1",
+    "Name": "chatbox",
+    "Description": "this plugin provides a chatbox widget for the rag-qt framework",
+    "Author": "hehehunanchina@live.com",
+    "Organization": "rag-qt",
+    "Dependencies": []
 }
