@@ -75,7 +75,9 @@ void ChatBox::_slotQueryResp(const int64_t sessionId, const QString &resp)
     _addAnserRecord(resp);
     ui->btnStart->released();
     ui->btnStart->setIcon(QIcon(":/icons/send"));
-    ui->listChat->currentItem()->setData(Qt::UserRole, sessionId);
+    ui->listChat->currentItem()->setData(
+        Qt::UserRole,
+        QVariant::fromValue(static_cast<qlonglong>(sessionId)));
 }
 
 void ChatBox::_slotBtnStartClicked()
@@ -92,7 +94,7 @@ void ChatBox::_slotBtnStartClicked()
         ui->listChat->setCurrentItem(item);
     } else
     {
-        sessionId = item->data(Qt::UserRole).toInt();
+        sessionId = item->data(Qt::UserRole).toLongLong();
     }
 
     _addQueryRecord(query);
