@@ -54,6 +54,7 @@ message(STATUS "C++ flags, minimal Release configuration:         ${CMAKE_CXX_FL
 if (NOT PLUGIN_ROOT_DIR)
     set(PLUGIN_ROOT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/plugins)
 endif()
+message(STATUS "Plugin root dir: ${PLUGIN_ROOT_DIR}")
 
 add_library(chatbox MODULE
   ChatBox.h

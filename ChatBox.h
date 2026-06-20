@@ -31,6 +31,14 @@ class ChatBox : public QObject, public PluginInterface
 
   private slots:
     void _slotPing();
+    void _slotLanguageSwitch(const QString &lang);
+    void _slotQueryResp(const int64_t sessionId, const QString &resp);
+
+    void _slotBtnStartClicked();
+
+  private:
+    void _addQueryRecord(const QString &query);
+    void _addAnserRecord(const QString &answer);
 
   private:
     Ui::ChatBox *ui;
