@@ -79,71 +79,48 @@
       </size>
      </property>
      <layout class="QVBoxLayout" name="verticalLayout">
+      <property name="leftMargin">
+       <number>0</number>
+      </property>
+      <property name="topMargin">
+       <number>0</number>
+      </property>
+      <property name="rightMargin">
+       <number>0</number>
+      </property>
+      <property name="bottomMargin">
+       <number>0</number>
+      </property>
       <item>
        <widget class="QTextEdit" name="editInput"/>
       </item>
       <item>
        <layout class="QHBoxLayout" name="horizontalLayout">
         <property name="spacing">
-         <number>6</number>
+         <number>20</number>
         </property>
         <item>
-         <widget class="QPushButton" name="btnLocal">
-          <property name="minimumSize">
-           <size>
-            <width>140</width>
-            <height>50</height>
-           </size>
-          </property>
-          <property name="maximumSize">
-           <size>
-            <width>140</width>
-            <height>50</height>
-           </size>
-          </property>
-          <property name="font">
-           <font/>
-          </property>
+         <widget class="QCheckBox" name="ckLocal">
           <property name="text">
            <string>Local</string>
-          </property>
-          <property name="checkable">
-           <bool>true</bool>
           </property>
          </widget>
         </item>
         <item>
-         <widget class="QPushButton" name="btnRemote">
-          <property name="minimumSize">
-           <size>
-            <width>140</width>
-            <height>50</height>
-           </size>
-          </property>
-          <property name="maximumSize">
-           <size>
-            <width>140</width>
-            <height>50</height>
-           </size>
-          </property>
-          <property name="font">
-           <font/>
-          </property>
+         <widget class="QCheckBox" name="ckRemote">
           <property name="text">
            <string>Remote</string>
-          </property>
-          <property name="checkable">
-           <bool>true</bool>
           </property>
          </widget>
         </item>
         <item>
          <widget class="QComboBox" name="comboModel">
-          <item>
-           <property name="text">
-            <string>QWen</string>
-           </property>
-          </item>
+          <property name="minimumSize">
+           <size>
+            <width>200</width>
+            <height>0</height>
+           </size>
+          </property>
          </widget>
         </item>
         <item>
