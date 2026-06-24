@@ -38,12 +38,13 @@ class ChatBox : public QObject, public PluginInterface
                              const Bus::Session &session);
     void _slotGetSessionResp(const int                    errorCode,
                              const QVector<Bus::Session> &sessions);
+    void _slotDelSessionResp(const int errorCode, const QVector<int64_t> &ids);
     void _slotQueryResp(const int32_t  errorCode,
                         const int64_t  sessionId,
                         const QString &resp);
     void _slotGetMessageInfoResp(const int                        errorCode,
                                  const QVector<Bus::MessageInfo> &messages);
-    void _slotModelInfoUpdate(const QVector<Bus::Model> &modelInfos);
+    void _slotModelInfoUpdate(const QVector<Bus::ModelConfig> &modelInfos);
 
     // ui signal
     void _slotBtnStartClicked();
@@ -57,7 +58,7 @@ class ChatBox : public QObject, public PluginInterface
     Ui::ChatBox *ui;
     Bus         *m_pBus;
 
-    QVector<Bus::Model> m_modelInfos;
+    QVector<Bus::ModelConfig> m_modelInfos;
 };
 
 #endif

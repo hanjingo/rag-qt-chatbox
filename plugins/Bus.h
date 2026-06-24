@@ -59,36 +59,35 @@ class Bus : public QObject
     static void Version(int8_t &major, int8_t &minor, int8_t &patch);
 
   signals:
+    // ---------------- from plugin to framework -----------------
     void SignalPong();
-    void SignalPing();
-
-    void SignalLanguageSwitch(const QString &lang);
-
-    void SignalModelInfoUpdate(const QVector<Bus::Model> &modelInfos);
-
     void SignalNewSession(const QString &title,
                           const QString &content,
                           const QString &model);
-    void SignalNewSessionResp(const int32_t       errorCode,
-                              const Bus::Session &session);
-
     void SignalGetSession(const int64_t  id,
                           const int64_t  user_id,
                           const QString &auth,
                           int            limit);
-    void SignalGetSessionResp(const int                    errorCode,
-                              const QVector<Bus::Session> &sessions);
-
     void SignalQuery(const int64_t  sessionId,
                      const QString &query,
                      const QString &model);
-    void SignalQueryResp(const int      errorCode,
-                         const int64_t  sessionId,
-                         const QString &content);
-
     void SignalGetMessageInfo(const int64_t msgId,
                               const int64_t sessionId,
                               int           limit);
+
+
+    // -------------- from framework to plugin -----------------
+    void SignalPing();
+    void SignalLanguageSwitch(const QString &lang);
+    void SignalModelInfoUpdateNtf(const QVector<Bus::ModelConfig> &modelInfos);
+    void SignalNewSessionResp(const int32_t       errorCode,
+                              const Bus::Session &session);
+    void SignalGetSessionResp(const int                    errorCode,
+                              const QVector<Bus::Session> &sessions);
+    void SignalDelSessionResp(const int errorCode, const QVector<int64_t> &ids);
+    void SignalQueryResp(const int      errorCode,
+                         const int64_t  sessionId,
+                         const QString &content);
     void SignalGetMessageInfoResp(const int                        errorCode,
                                   const QVector<Bus::MessageInfo> &messages);
 

@@ -56,13 +56,17 @@ QWidget *ChatBox::Init(Bus *parent)
             &Bus::SignalGetSessionResp,
             this,
             &ChatBox::_slotGetSessionResp);
+    connect(m_pBus,
+            &Bus::SignalDelSessionResp,
+            this,
+            &ChatBox::_slotDelSessionResp);
     connect(m_pBus, &Bus::SignalQueryResp, this, &ChatBox::_slotQueryResp);
     connect(m_pBus,
             &Bus::SignalGetMessageInfoResp,
             this,
             &ChatBox::_slotGetMessageInfoResp);
     connect(m_pBus,
-            &Bus::SignalModelInfoUpdate,
+            &Bus::SignalModelInfoUpdateNtf,
             this,
             &ChatBox::_slotModelInfoUpdate);
 
@@ -142,6 +146,7 @@ void ChatBox::_slotGetSessionResp(const int                    errorCode,
         return;
     }
 
+    ui->listChat->clear();
     for(auto session : sessions)
     {
         auto item = new QListWidgetItem(session.title);
@@ -152,6 +157,39 @@ void ChatBox::_slotGetSessionResp(const int                    errorCode,
             Qt::UserRole,
             QVariant::fromValue(static_cast<qlonglong>(session.id)));
     }
+}
+
+void ChatBox::_slotDelSessionResp(const int               errorCode,
+                                  const QVector<int64_t> &ids)
+{
+    qDebug() << "ChatBox: DelSessionResp";
+    if(errorCode != 0)
+    {
+        qDebug() << "Failed to delete sessions from Bus. errorCode: "
+                 << errorCode;
+        return;
+    }
+
+    auto currentItem = ui->listChat->currentItem();
+    for(int i = ui->listChat->count() - 1; i >= 0; i--)
+    {
+        auto item = ui->listChat->item(i);
+        if(item == nullptr)
+            continue;
+
+        auto sessionId = item->data(Qt::UserRole).toLongLong();
+        if(ids.contains(sessionId))
+        {
+            qDebug() << "Delete session with id: " << sessionId;
+            if(currentItem == item)
+                ui->txtBrowserChat->clear();
+
+            delete item;
+        }
+    }
+
+    // repull the session list from the server to refresh the list
+    emit m_pBus->SignalGetSession(-1, 50);
 }
 
 void ChatBox::_slotQueryResp(const int32_t  errorCode,
@@ -211,7 +249,7 @@ void ChatBox::_slotGetMessageInfoResp(const int errorCode,
     }
 }
 
-void ChatBox::_slotModelInfoUpdate(const QVector<Bus::Model> &modelInfos)
+void ChatBox::_slotModelInfoUpdate(const QVector<Bus::ModelConfig> &modelInfos)
 {
     qDebug()
         << "ChatBox received ModelInfoUpdate signal from Bus. model count: "
@@ -260,7 +298,8 @@ void ChatBox::_slotCurrentRowChanged(int row)
     if(row < 0 || row > ui->listChat->count() || !ui->listChat->currentItem())
         return;
 
-    auto sessionId = ui->listChat->currentItem()->data(Qt::UserRole).toLongLong();
+    auto sessionId =
+        ui->listChat->currentItem()->data(Qt::UserRole).toLongLong();
     emit m_pBus->SignalGetMessageInfo(-1, sessionId, 1000);
 }
 
