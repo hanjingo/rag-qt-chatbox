@@ -41,7 +41,8 @@ class ChatBox : public QObject, public PluginInterface
     void _slotDelSessionResp(const int errorCode, const QVector<int64_t> &ids);
     void _slotQueryResp(const int32_t  errorCode,
                         const int64_t  sessionId,
-                        const QString &resp);
+                        const QString &resp,
+                        const bool     isFinished);
     void _slotGetMessageInfoResp(const int                        errorCode,
                                  const QVector<Bus::MessageInfo> &messages);
     void _slotModelInfoUpdate(const QVector<Bus::ModelConfig> &modelInfos);
@@ -52,11 +53,16 @@ class ChatBox : public QObject, public PluginInterface
 
   private:
     void _addQueryRecord(const QString &query);
-    void _addAnswerRecord(const QString &answer);
+    void _addAnswerRecord(const QString &answer, const bool isFinished = true);
 
   private:
     Ui::ChatBox *ui;
     Bus         *m_pBus;
+
+    QString m_streamingAnswer;
+    QString m_streamTimestamp;
+    int     m_streamStartPos = -1;
+
 
     QVector<Bus::ModelConfig> m_modelInfos;
 };

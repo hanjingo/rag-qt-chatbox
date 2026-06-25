@@ -194,23 +194,20 @@ void ChatBox::_slotDelSessionResp(const int               errorCode,
 
 void ChatBox::_slotQueryResp(const int32_t  errorCode,
                              const int64_t  sessionId,
-                             const QString &resp)
+                             const QString &resp,
+                             const bool     isFinished)
 {
     qDebug() << "ChatBox received QueryResp signal from Bus. sessionId: "
              << sessionId << ", resp: " << resp;
     if(errorCode != 0)
     {
-        qDebug() << "Failed to get query response for sessionId: " << sessionId;
-        QMessageBox::warning(
-            nullptr,
-            tr("Query Failed"),
-            tr("Failed to get query response:%1 for sessionId: %2")
-                .arg(resp)
-                .arg(sessionId));
+        qDebug() << "Failed to get query response for sessionId: " << sessionId
+                 << ", errorCode: " << errorCode;
+        _addAnswerRecord(tr("Error: %1").arg(errorCode), true);
         return;
     }
 
-    _addAnswerRecord(resp);
+    _addAnswerRecord(resp, isFinished);
 }
 
 void ChatBox::_slotGetMessageInfoResp(const int errorCode,
@@ -331,33 +328,66 @@ void ChatBox::_addQueryRecord(const QString &query)
     ui->txtBrowserChat->setTextCursor(cursor);
 }
 
-void ChatBox::_addAnswerRecord(const QString &answer)
+void ChatBox::_addAnswerRecord(const QString &answer, bool isFinished)
 {
-    qDebug() << "Add answer record: " << answer;
-    QString tm   = QDateTime::currentDateTime().toString("hh:mm:ss");
-    QString html = QString(R"(
-        <table width="100%" border="0" cellspacing="0" cellpadding="0" style="margin-bottom: 10px;">
+    qDebug() << "Add answer record:" << answer;
+    QTextCursor cursor = ui->txtBrowserChat->textCursor();
+    if(m_streamStartPos == -1) // new answer
+    {
+        m_streamTimestamp = QDateTime::currentDateTime().toString("hh:mm:ss");
+        m_streamingAnswer = answer;
+
+        QString html = QString(R"(
+            <table width="100%" border="0" cellspacing="0" cellpadding="0" style="margin-bottom: 10px;">
             <tr>
                 <td align="left">
-                    <span style="color: #888888; font-size: 11px; margin-left: 5px;">%1</span>
-                    <br>
+                    <span style="color: #888888; font-size: 11px; margin-left: 5px;">%1</span><br>
                     <table bgcolor="#f1f1f1" style="border-radius: 10px; margin-top: 3px;" cellpadding="6">
-                        <tr>
-                            <td style="color: #000000; font-size: 14px; text-align: left;">%2</td>
-                        </tr>
+                    <tr><td style="color: #000000; font-size: 14px; text-align: left;">%2</td></tr>
                     </table>
                 </td>
             </tr>
-        </table>
-    )")
-                       .arg(tm, answer);
+            </table>
+        )")
+                           .arg(m_streamTimestamp, m_streamingAnswer);
 
-    ui->txtBrowserChat->append(html);
+        cursor.movePosition(QTextCursor::End);
+        m_streamStartPos = cursor.position();
+        cursor.insertHtml(html);
+    } else // update existing answer
+    {
+        m_streamingAnswer += answer;
+        QString html = QString(R"(
+            <table width="100%" border="0" cellspacing="0" cellpadding="0" style="margin-bottom: 10px;">
+            <tr>
+                <td align="left">
+                    <span style="color: #888888; font-size: 11px; margin-left: 5px;">%1</span><br>
+                    <table bgcolor="#f1f1f1" style="border-radius: 10px; margin-top: 3px;" cellpadding="6">
+                    <tr><td style="color: #000000; font-size: 14px; text-align: left;">%2</td></tr>
+                    </table>
+                </td>
+            </tr>
+            </table>
+        )")
+                           .arg(m_streamTimestamp, m_streamingAnswer);
 
-    QTextCursor cursor = ui->txtBrowserChat->textCursor();
+        cursor.setPosition(m_streamStartPos);
+        cursor.movePosition(QTextCursor::End, QTextCursor::KeepAnchor);
+        cursor.insertHtml(html);
+    }
+
     cursor.movePosition(QTextCursor::End);
     ui->txtBrowserChat->setTextCursor(cursor);
 
-    ui->btnStart->released();
-    ui->btnStart->setIcon(QIcon(":/icons/send"));
+    if(isFinished)
+    {
+        m_streamStartPos = -1;
+        m_streamingAnswer.clear();
+        m_streamTimestamp.clear();
+
+        ui->btnStart->released();
+        ui->btnStart->setIcon(QIcon(":/icons/send"));
+    }
+
+    QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
 }
