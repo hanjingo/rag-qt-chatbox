@@ -31,8 +31,9 @@ class Bus : public QObject
         QString timestamp;
     };
 
-    struct Model
+    struct ModelConfig
     {
+        // base info
         QString hash;
         QString name;
         QString publisher;
@@ -41,6 +42,16 @@ class Bus : public QObject
         QString capabilities;
         qint64  contextSize;
         qint32  cost;
+        QString apiKey;
+
+        // parameters
+        float   temperature;
+        float   topP;
+        float   topK;
+        float   reputationPenalty;
+        qint64  maxTokens;
+        QString stopWords;
+        QString prompt;
     };
 
     struct Skill
@@ -59,35 +70,36 @@ class Bus : public QObject
     static void Version(int8_t &major, int8_t &minor, int8_t &patch);
 
   signals:
-    // ---------------- from plugin to framework -----------------
     void SignalPong();
+    void SignalPing();
+
+    void SignalLanguageSwitch(const QString &lang);
+
+    void SignalModelInfoUpdateNtf(const QVector<Bus::ModelConfig> &modelInfos);
+
     void SignalNewSession(const QString &title,
                           const QString &content,
                           const QString &model);
-    void SignalGetSession(const int64_t  id,
-                          const int64_t  user_id,
-                          const QString &auth,
-                          int            limit);
+    void SignalNewSessionResp(const int32_t       errorCode,
+                              const Bus::Session &session);
+
+    void SignalGetSession(const int64_t sessionId, int limit);
+    void SignalGetSessionResp(const int                    errorCode,
+                              const QVector<Bus::Session> &sessions);
+
+    void SignalDelSessionResp(const int errorCode, const QVector<int64_t> &ids);
+
     void SignalQuery(const int64_t  sessionId,
                      const QString &query,
                      const QString &model);
+    void SignalQueryResp(const int      errorCode,
+                         const int64_t  sessionId,
+                         const QString &content,
+                         const bool     isFinished);
+
     void SignalGetMessageInfo(const int64_t msgId,
                               const int64_t sessionId,
                               int           limit);
-
-
-    // -------------- from framework to plugin -----------------
-    void SignalPing();
-    void SignalLanguageSwitch(const QString &lang);
-    void SignalModelInfoUpdateNtf(const QVector<Bus::ModelConfig> &modelInfos);
-    void SignalNewSessionResp(const int32_t       errorCode,
-                              const Bus::Session &session);
-    void SignalGetSessionResp(const int                    errorCode,
-                              const QVector<Bus::Session> &sessions);
-    void SignalDelSessionResp(const int errorCode, const QVector<int64_t> &ids);
-    void SignalQueryResp(const int      errorCode,
-                         const int64_t  sessionId,
-                         const QString &content);
     void SignalGetMessageInfoResp(const int                        errorCode,
                                   const QVector<Bus::MessageInfo> &messages);
 
