@@ -96,20 +96,24 @@
       </item>
       <item>
        <layout class="QHBoxLayout" name="horizontalLayout">
-        <property name="spacing">
-         <number>20</number>
-        </property>
         <item>
-         <widget class="QCheckBox" name="ckLocal">
+         <widget class="QRadioButton" name="ckLocal">
           <property name="text">
            <string>Local</string>
           </property>
          </widget>
         </item>
         <item>
-         <widget class="QCheckBox" name="ckRemote">
+         <widget class="QRadioButton" name="ckRemote">
           <property name="text">
            <string>Remote</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QRadioButton" name="ckHybrid">
+          <property name="text">
+           <string>Hybrid</string>
           </property>
          </widget>
         </item>
@@ -117,7 +121,7 @@
          <widget class="QComboBox" name="comboModel">
           <property name="minimumSize">
            <size>
-            <width>200</width>
+            <width>300</width>
             <height>0</height>
            </size>
           </property>

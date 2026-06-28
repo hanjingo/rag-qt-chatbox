@@ -5,6 +5,8 @@
 #include <QtPlugin>
 #include <QWidget>
 #include <QVector>
+#include <QButtonGroup>
+#include <QHash>
 
 #include "Bus.h"
 #include "PluginInterface.h"
@@ -43,6 +45,7 @@ class ChatBox : public QObject, public PluginInterface
                         const int64_t  sessionId,
                         const QString &resp,
                         const bool     isFinished);
+    void _slotStopAnswerResp(const int64_t errorCode, const int64_t sessionId);
     void _slotGetMessageInfoResp(const int                        errorCode,
                                  const QVector<Bus::MessageInfo> &messages);
     void _slotModelInfoUpdate(const QVector<Bus::ModelConfig> &modelInfos);
@@ -50,21 +53,38 @@ class ChatBox : public QObject, public PluginInterface
     // ui signal
     void _slotBtnStartClicked();
     void _slotCurrentRowChanged(int row);
+    void _slotPipelineBtnGroupClicked(int id);
 
   private:
-    void _addQueryRecord(const QString &query);
-    void _addAnswerRecord(const QString &answer, const bool isFinished = true);
+    void _drawQueryRecord(const QString &query);
+    void _drawAnswerRecord(const QString &answer, const bool isFinished = true);
+    void _refreshModelItem();
+    void _refreshAnswerFinishState(bool isFinished);
+    void _refreshChatBrowser();
+    void _query();
+    void _stopQuery();
+    void _addMsgRecord(const int64_t  sessionId,
+                       const QString &role,
+                       const QString &content,
+                       const QString &timestamp,
+                       const bool     isFinished);
 
   private:
-    Ui::ChatBox *ui;
-    Bus         *m_pBus;
+    Ui::ChatBox  *ui;
+    QButtonGroup *m_pPipelineBtnGroup;
+
+    Bus *m_pBus;
+
+    bool m_isAnswerFinished = true;
+
+    bool m_isLastMsgFinished = true;
 
     QString m_streamingAnswer;
     QString m_streamTimestamp;
     int     m_streamStartPos = -1;
 
-
-    QVector<Bus::ModelConfig> m_modelInfos;
+    QVector<Bus::ModelConfig>                 m_modelInfos;
+    QHash<int64_t, QVector<Bus::MessageInfo>> m_messageInfos;
 };
 
 #endif
