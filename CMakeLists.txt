@@ -50,6 +50,10 @@ message(STATUS "C++ flags, minimal Release configuration:         ${CMAKE_CXX_FL
 # Source Code
 # ----------------------------------------------------------------------------
 
+list(APPEND CHAT_BOX_PROJECT_RESOURCES
+    ${CMAKE_CURRENT_SOURCE_DIR}/res.qrc
+)
+
 # set plugin common file directory
 if (NOT PLUGIN_ROOT_DIR)
     set(PLUGIN_ROOT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/plugins)
@@ -64,6 +68,8 @@ add_library(chatbox MODULE
   ${PLUGIN_ROOT_DIR}/Bus.cpp
   ${PLUGIN_ROOT_DIR}/Bus.h
   ${PLUGIN_ROOT_DIR}/PluginInterface.h
+
+  ${CHAT_BOX_PROJECT_RESOURCES}
 )
 
 target_link_libraries(chatbox PRIVATE Qt${QT_VERSION_MAJOR}::Core Qt${QT_VERSION_MAJOR}::Widgets Qt${QT_VERSION_MAJOR}::Multimedia)

@@ -494,9 +494,21 @@ QWidget *ChatBox::_initUI()
         "   font-size: 14px;"
         "}");
 
+    ui->btnStart->setStyleSheet("QPushButton {"
+                                "   background - color : #7B8DA3;"
+                                "   qproperty - iconSize : 56px 56px;"
+                                "border:"
+                                "   none;"
+                                "}");
     ui->btnStart->setEnabled(true);
     ui->btnStart->setIcon(QIcon(":/icons/send"));
 
+    ui->btnAudioStart->setStyleSheet("QPushButton {"
+                                     "   background - color : #7B8DA3;"
+                                     "   qproperty - iconSize : 56px 56px;"
+                                     "border:"
+                                     "   none;"
+                                     "}");
     ui->btnAudioStart->setEnabled(true);
     ui->btnAudioStart->setIcon(QIcon(":/icons/audio_norm"));
 

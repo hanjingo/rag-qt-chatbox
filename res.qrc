@@ -1,0 +1,8 @@
+<RCC>
+    <qresource prefix="/icons">
+        <file alias="audio_norm">res/icons/audio_norm.png</file>
+        <file alias="audio_recording">res/icons/audio_recording.png</file>
+        <file alias="send">res/icons/send.png</file>
+        <file alias="pause_check">res/icons/puse_check.svg</file>
+    </qresource>
+</RCC>
