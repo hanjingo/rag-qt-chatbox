@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>790</width>
+    <width>907</width>
     <height>617</height>
    </rect>
   </property>
@@ -121,7 +121,7 @@
          <widget class="QComboBox" name="comboModel">
           <property name="minimumSize">
            <size>
-            <width>300</width>
+            <width>350</width>
             <height>0</height>
            </size>
           </property>
@@ -139,6 +139,36 @@
            </size>
           </property>
          </spacer>
+        </item>
+        <item>
+         <widget class="QPushButton" name="btnAudioStart">
+          <property name="minimumSize">
+           <size>
+            <width>56</width>
+            <height>56</height>
+           </size>
+          </property>
+          <property name="maximumSize">
+           <size>
+            <width>56</width>
+            <height>56</height>
+           </size>
+          </property>
+          <property name="text">
+           <string/>
+          </property>
+          <property name="icon">
+           <iconset resource="../../../res.qrc">
+            <normaloff>:/icons/audio_norm</normaloff>
+            <normalon>:/icons/audio_recording</normalon>:/icons/audio_norm</iconset>
+          </property>
+          <property name="iconSize">
+           <size>
+            <width>56</width>
+            <height>56</height>
+           </size>
+          </property>
+         </widget>
         </item>
         <item>
          <widget class="QPushButton" name="btnStart">

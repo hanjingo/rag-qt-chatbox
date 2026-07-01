@@ -4,6 +4,7 @@
 #include <QObject>
 #include <QString>
 #include <QVector>
+#include <QAudioFormat>
 
 #define BUS_VERSION_MAJOR 0
 #define BUS_VERSION_MINOR 0
@@ -29,6 +30,7 @@ class Bus : public QObject
         QString content;
         qint64  prevMessageId;
         QString timestamp;
+        bool    isFinished;
     };
 
     struct ModelConfig
@@ -110,6 +112,15 @@ class Bus : public QObject
                               int           limit);
     void SignalGetMessageInfoResp(const int                        errorCode,
                                   const QVector<Bus::MessageInfo> &messages);
+
+    void SignalAudioCaptureStart(const QAudioFormat &format,
+                                 const QByteArray   &devId);
+    void SignalAudioCaptureStarted(const qint64 id, const QByteArray &devId);
+
+    void SignalAudioCaptured(const qint64 id, const QByteArray &data);
+
+    void SignalAudioCaptureStop(const qint64 id);
+    void SignalAudioCaptureStopped(const qint64 id);
 
   private:
     explicit Bus(QObject *parent = nullptr)

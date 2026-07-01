@@ -7,6 +7,8 @@
 #include <QVector>
 #include <QButtonGroup>
 #include <QHash>
+#include <QMutex>
+#include <QMutexLocker>
 
 #include "Bus.h"
 #include "PluginInterface.h"
@@ -49,41 +51,64 @@ class ChatBox : public QObject, public PluginInterface
     void _slotGetMessageInfoResp(const int                        errorCode,
                                  const QVector<Bus::MessageInfo> &messages);
     void _slotModelInfoUpdate(const QVector<Bus::ModelConfig> &modelInfos);
+    void _slotAudioCaptureStarted(const qint64 id, const QByteArray devId);
+    void _slotAudioCaptured(const qint64 id, const QByteArray &data);
+    void _slotAudioCaptureStopped(const qint64 id);
 
     // ui signal
     void _slotBtnStartClicked();
+    void _slotBtnAudioStartClicked();
     void _slotCurrentRowChanged(int row);
     void _slotPipelineBtnGroupClicked(int id);
 
   private:
+    void _refreshUI();
+    void _refreshModelItem();
+    void _refreshChatBrowser(const QVector<Bus::MessageInfo> &msgs);
     void _drawQueryRecord(const QString &query);
     void _drawAnswerRecord(const QString &answer, const bool isFinished = true);
-    void _refreshModelItem();
-    void _refreshAnswerFinishState(bool isFinished);
-    void _refreshChatBrowser();
-    void _query();
-    void _stopQuery();
-    void _addMsgRecord(const int64_t  sessionId,
-                       const QString &role,
-                       const QString &content,
-                       const QString &timestamp,
-                       const bool     isFinished);
+    void _clearChatBrowser();
+
+    void     _retranslate();
+    QWidget *_initUI();
+    void     _initConnectsions();
+
+    void                      _writeBuf(const Bus::MessageInfo &msg);
+    QVector<Bus::MessageInfo> _readBufAll();
+    void                      _setAnswerFinishState(bool isFinish);
+    void                      _query();
+    void                      _stopQuery();
+    void                      _startAudioRecord();
+    void                      _stopAudioRecord();
+    void             _setAudioRecordState(bool isStarted, qint64 id = -1);
+    void             _addMsgRecord(const Bus::MessageInfo &msg);
+    Bus::MessageInfo _convert(const int64_t  msg_id,
+                              const int64_t  sessionId,
+                              const QString &role,
+                              const QString &content,
+                              const QString &timestamp,
+                              const bool     isFinished);
 
   private:
     Ui::ChatBox  *ui;
     QButtonGroup *m_pPipelineBtnGroup;
 
-    Bus *m_pBus;
+    mutable QMutex m_mu;
+    Bus           *m_pBus;
+    QTimer        *m_pTimer;
 
-    bool m_isAnswerFinished = true;
-
+    bool m_isAnswerFinished  = true;
     bool m_isLastMsgFinished = true;
+
+    qint64 m_audioId        = -1;
+    bool   m_isAudioStarted = false;
 
     QString m_streamingAnswer;
     QString m_streamTimestamp;
     int     m_streamStartPos = -1;
 
     QVector<Bus::ModelConfig>                 m_modelInfos;
+    QVector<Bus::MessageInfo>                 m_buf;
     QHash<int64_t, QVector<Bus::MessageInfo>> m_messageInfos;
 };
 

@@ -1,12 +1,15 @@
 #include "ChatBox.h"
 #include "ui_ChatBox.h"
 
+#include <QTimer>
 #include <QString>
 #include <QMessageBox>
+#include <QAudioFormat>
 
 ChatBox::ChatBox(QWidget *parent)
     : ui(new Ui::ChatBox)
     , m_pPipelineBtnGroup(new QButtonGroup(this))
+    , m_pTimer(new QTimer(this))
 {
 }
 
@@ -19,78 +22,12 @@ QWidget *ChatBox::Init(Bus *parent)
 {
     m_pBus = parent;
 
-    // create UI
-    auto wgt = new QWidget(nullptr);
-    wgt->setStyleSheet("background-color: transparent;");
-    ui->setupUi(wgt);
+    auto wgt = _initUI();
+    _initConnectsions();
+    _retranslate();
 
-    ui->listChat->setEditTriggers(QAbstractItemView::DoubleClicked
-                                  | QAbstractItemView::SelectedClicked);
-
-    ui->txtBrowserChat->setFocusPolicy(Qt::NoFocus);
-    ui->txtBrowserChat->setOpenExternalLinks(true);
-    ui->txtBrowserChat->setStyleSheet(
-        "QTextBrowser {"
-        "   background-color: #ffffff;"
-        "   border: 1px solid #cccccc;"
-        "   font-family: 'Microsoft YaHei', sans-serif;"
-        "   font-size: 14px;"
-        "}");
-
-    ui->btnStart->setEnabled(true);
-    ui->btnStart->setIcon(QIcon(":/icons/send"));
-
-    m_pPipelineBtnGroup->addButton(ui->ckLocal);
-    m_pPipelineBtnGroup->addButton(ui->ckRemote);
-    m_pPipelineBtnGroup->addButton(ui->ckHybrid);
-    m_pPipelineBtnGroup->setExclusive(true);
-    ui->ckLocal->click();
-
-    // init BUS connect
-    connect(m_pBus, &Bus::SignalPing, this, &ChatBox::_slotPing);
-    connect(m_pBus,
-            &Bus::SignalLanguageSwitch,
-            this,
-            &ChatBox::_slotLanguageSwitch);
-    connect(m_pBus,
-            &Bus::SignalNewSessionResp,
-            this,
-            &ChatBox::_slotNewSessionResp);
-    connect(m_pBus,
-            &Bus::SignalGetSessionResp,
-            this,
-            &ChatBox::_slotGetSessionResp);
-    connect(m_pBus,
-            &Bus::SignalDelSessionResp,
-            this,
-            &ChatBox::_slotDelSessionResp);
-    connect(m_pBus, &Bus::SignalQueryResp, this, &ChatBox::_slotQueryResp);
-    connect(m_pBus,
-            &Bus::SignalStopAnswerResp,
-            this,
-            &ChatBox::_slotStopAnswerResp);
-    connect(m_pBus,
-            &Bus::SignalGetMessageInfoResp,
-            this,
-            &ChatBox::_slotGetMessageInfoResp);
-    connect(m_pBus,
-            &Bus::SignalModelInfoUpdateNtf,
-            this,
-            &ChatBox::_slotModelInfoUpdate);
-
-    // init UI connect
-    connect(ui->btnStart,
-            &QPushButton::clicked,
-            this,
-            &ChatBox::_slotBtnStartClicked);
-    connect(ui->listChat,
-            &QListWidget::currentRowChanged,
-            this,
-            &ChatBox::_slotCurrentRowChanged);
-    connect(m_pPipelineBtnGroup,
-            &QButtonGroup::idClicked,
-            this,
-            &ChatBox::_slotPipelineBtnGroupClicked);
+    ui->ckLocal->setChecked(true);
+    m_pTimer->start(100);
 
     return wgt;
 }
@@ -170,7 +107,16 @@ void ChatBox::_slotDelSessionResp(const int               errorCode,
         return;
     }
 
+    // refresh chat history
     auto currentItem = ui->listChat->currentItem();
+    if(currentItem)
+    {
+        auto currentSessionId = currentItem->data(Qt::UserRole).toLongLong();
+        if(ids.contains(currentSessionId))
+            _clearChatBrowser();
+    }
+
+    // refresh chat list
     for(int i = ui->listChat->count() - 1; i >= 0; i--)
     {
         auto item = ui->listChat->item(i);
@@ -184,9 +130,6 @@ void ChatBox::_slotDelSessionResp(const int               errorCode,
             ui->listChat->removeItemWidget(item);
         }
     }
-
-    // refresh
-    _refreshChatBrowser();
 }
 
 void ChatBox::_slotQueryResp(const int32_t  errorCode,
@@ -201,22 +144,25 @@ void ChatBox::_slotQueryResp(const int32_t  errorCode,
     {
         qDebug() << "Failed to get query response for sessionId: " << sessionId
                  << ", errorCode: " << errorCode;
-        _drawAnswerRecord(
-            tr("Failed to get query response for sessionId: %1, errorCode: %2")
-                .arg(sessionId)
-                .arg(errorCode),
+        auto msg = _convert(
+            -1,
+            sessionId,
+            "assistant",
+            tr("Failed to get query response, errorCode: %1").arg(errorCode),
+            QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss"),
             true);
-        _refreshAnswerFinishState(true);
+        _writeBuf(msg);
         return;
     }
 
-    _drawAnswerRecord(resp, isFinished);
-    _refreshAnswerFinishState(isFinished);
-    _addMsgRecord(sessionId,
-                  "assistant",
-                  resp,
-                  QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss"),
-                  isFinished);
+    auto msg =
+        _convert(-1,
+                 sessionId,
+                 "assistant",
+                 resp,
+                 QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss"),
+                 isFinished);
+    _writeBuf(msg);
     return;
 }
 
@@ -237,8 +183,6 @@ void ChatBox::_slotStopAnswerResp(const int64_t errorCode,
                                  .arg(errorCode));
         return;
     }
-
-    _refreshAnswerFinishState(true);
 }
 
 void ChatBox::_slotGetMessageInfoResp(const int errorCode,
@@ -265,13 +209,8 @@ void ChatBox::_slotGetMessageInfoResp(const int errorCode,
         const auto &msg = messages[i];
         qDebug() << "Message: id=" << msg.id << ", sessionId=" << msg.sessionId
                  << ", role=" << msg.role << ", content=" << msg.content;
-        _addMsgRecord(msg.sessionId,
-                      msg.role,
-                      msg.content,
-                      msg.timestamp,
-                      true);
+        _writeBuf(msg);
     }
-    _refreshChatBrowser();
 }
 
 void ChatBox::_slotModelInfoUpdate(const QVector<Bus::ModelConfig> &modelInfos)
@@ -286,16 +225,56 @@ void ChatBox::_slotModelInfoUpdate(const QVector<Bus::ModelConfig> &modelInfos)
         qDebug() << "Model id: " << model.id << ", addr: " << model.addr;
     }
 
-    // refresh model combo box
     _refreshModelItem();
+}
+
+void ChatBox::_slotAudioCaptureStarted(const qint64 id, const QByteArray devId)
+{
+    if(m_isAudioStarted || (m_audioId != -1 && m_audioId != id))
+        return;
+
+    _setAudioRecordState(true, id);
+}
+
+void ChatBox::_slotAudioCaptured(const qint64 id, const QByteArray &data)
+{
+    // qDebug() << "Audio Captured in:" << data;
+    if(!m_isAudioStarted || m_audioId != id)
+        return;
+
+    qDebug() << "Audio Captured:" << data;
+}
+
+void ChatBox::_slotAudioCaptureStopped(const qint64 id)
+{
+    if(!m_isAudioStarted || m_audioId != id)
+        return;
+
+    _setAudioRecordState(false);
 }
 
 void ChatBox::_slotBtnStartClicked()
 {
+    qDebug() << "Start button clicked. m_isAnswerFinished: "
+             << m_isAnswerFinished;
+    // ui->btnStart->setEnabled(false);
+    // QTimer::singleShot(3000, this, [=]() { ui->btnStart->setEnabled(true); });
+
     if(m_isAnswerFinished) // start query
         _query();
     else // stop query
         _stopQuery();
+}
+
+void ChatBox::_slotBtnAudioStartClicked()
+{
+    qDebug() << "Audio start button clicked. m_isAudioStarted:"
+             << m_isAudioStarted;
+
+    if(m_isAudioStarted) // stop record
+        _stopAudioRecord();
+    else // start record
+        _startAudioRecord();
 }
 
 void ChatBox::_slotCurrentRowChanged(int row)
@@ -303,29 +282,103 @@ void ChatBox::_slotCurrentRowChanged(int row)
     if(row < 0 || row > ui->listChat->count() || !ui->listChat->currentItem())
         return;
 
-    auto sessionId =
-        ui->listChat->currentItem()->data(Qt::UserRole).toLongLong();
-
-    auto messages =
-        m_messageInfos.value(sessionId, QVector<Bus::MessageInfo>());
-    ui->txtBrowserChat->clear();
-    for(const auto &msg : messages)
-    {
-        if(msg.role == "user")
-            _drawQueryRecord(msg.content);
-        else
-            _drawAnswerRecord(msg.content, true);
-    }
+    _clearChatBrowser();
 }
 
 void ChatBox::_slotPipelineBtnGroupClicked(int id)
 {
+    qDebug() << "Pipeline button group clicked. id: " << id;
     _refreshModelItem();
+}
+
+void ChatBox::_refreshUI()
+{
+    auto msgs = _readBufAll();
+    for(auto msg : msgs)
+    {
+        _addMsgRecord(msg);
+    }
+
+    // refresh chat browser
+    _refreshChatBrowser(msgs);
+
+    // refresh answer finish state
+    for(auto msg : msgs)
+    {
+        _setAnswerFinishState(msg.isFinished);
+    }
+}
+
+void ChatBox::_refreshModelItem()
+{
+    QString pipeline;
+    if(ui->ckLocal->isChecked())
+        pipeline = "local";
+    else if(ui->ckRemote->isChecked())
+        pipeline = "remote";
+    else if(ui->ckHybrid->isChecked())
+        pipeline = "hybrid";
+    else
+        pipeline = "local";
+
+    ui->comboModel->clear();
+    for(auto item : m_modelInfos)
+    {
+        if(item.pipeline != pipeline)
+            continue;
+
+        ui->comboModel->addItem(item.id);
+    }
+}
+
+void ChatBox::_setAnswerFinishState(bool isFinish)
+{
+    if(m_isAnswerFinished == isFinish)
+        return;
+
+    m_isAnswerFinished = isFinish;
+    if(m_isAnswerFinished)
+    {
+        m_streamStartPos = -1;
+        m_streamingAnswer.clear();
+        m_streamTimestamp.clear();
+
+        ui->btnStart->setChecked(false);
+        ui->btnStart->setIcon(QIcon(":/icons/send"));
+    } else
+    {
+        ui->btnStart->setChecked(true);
+        ui->btnStart->setIcon(QIcon(":/icons/pause_check"));
+    }
+}
+
+void ChatBox::_refreshChatBrowser(const QVector<Bus::MessageInfo> &msgs)
+{
+    auto sessionId = -1;
+    if(ui->listChat->currentItem())
+    {
+        sessionId =
+            ui->listChat->currentItem()->data(Qt::UserRole).toLongLong();
+    }
+    if(sessionId == -1)
+    {
+        _clearChatBrowser();
+        return;
+    }
+
+    // refresh buffer msg
+    for(auto msg : msgs)
+    {
+        if(msg.role == "user")
+            _drawQueryRecord(msg.content);
+        else
+            _drawAnswerRecord(msg.content, msg.isFinished);
+    }
 }
 
 void ChatBox::_drawQueryRecord(const QString &query)
 {
-    qDebug() << "Add Query Record: " << query;
+    qDebug() << "Draw Query Record: " << query;
     QString tm   = QDateTime::currentDateTime().toString("hh:mm:ss");
     QString html = QString(R"(
         <table width="100%" border="0" cellspacing="0" cellpadding="0" style="margin-bottom: 10px;">
@@ -353,7 +406,7 @@ void ChatBox::_drawQueryRecord(const QString &query)
 
 void ChatBox::_drawAnswerRecord(const QString &answer, bool isFinished)
 {
-    qDebug() << "Add answer record:" << answer;
+    qDebug() << "Draw answer record:" << answer;
     QTextCursor cursor = ui->txtBrowserChat->textCursor();
     if(m_streamStartPos == -1) // new answer
     {
@@ -409,78 +462,160 @@ void ChatBox::_drawAnswerRecord(const QString &answer, bool isFinished)
         m_streamTimestamp.clear();
         qDebug() << "Answer finished, reset streaming state.";
     }
-
-    QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
 }
 
-void ChatBox::_refreshModelItem()
-{
-    QString pipeline;
-    if(ui->ckLocal->isChecked())
-        pipeline = "local";
-    else if(ui->ckRemote->isChecked())
-        pipeline = "remote";
-    else if(ui->ckHybrid->isChecked())
-        pipeline = "hybrid";
-    else
-        pipeline = "local";
-
-    ui->comboModel->clear();
-    for(auto item : m_modelInfos)
-    {
-        if(item.pipeline != pipeline)
-            continue;
-
-        ui->comboModel->addItem(item.id);
-    }
-}
-
-void ChatBox::_refreshAnswerFinishState(bool isFinished)
-{
-    m_isAnswerFinished = isFinished;
-    if(m_isAnswerFinished)
-    {
-        m_streamStartPos = -1;
-        m_streamingAnswer.clear();
-        m_streamTimestamp.clear();
-
-        ui->btnStart->setChecked(false);
-        ui->btnStart->setIcon(QIcon(":/icons/send"));
-        qDebug() << "Answer finished, reset streaming state.";
-    } else
-    {
-        ui->btnStart->setChecked(true);
-        ui->btnStart->setIcon(QIcon(":/icons/pause_check"));
-        qDebug() << "Answer not finished, keep streaming state.";
-    }
-}
-
-void ChatBox::_refreshChatBrowser()
+void ChatBox::_clearChatBrowser()
 {
     ui->txtBrowserChat->clear();
-    auto sessionId = -1;
-    if(ui->listChat->currentItem())
-    {
-        sessionId =
-            ui->listChat->currentItem()->data(Qt::UserRole).toLongLong();
-    }
-    if(sessionId == -1)
-        return;
+}
 
-    auto msgs = m_messageInfos.value(sessionId, QVector<Bus::MessageInfo>());
-    for(const auto &msg : msgs)
+void ChatBox::_retranslate()
+{
+    // TODO retranslate language
+}
+
+QWidget *ChatBox::_initUI()
+{
+    // create UI
+    auto wgt = new QWidget(nullptr);
+    wgt->setStyleSheet("background-color: transparent;");
+    ui->setupUi(wgt);
+
+    ui->listChat->setEditTriggers(QAbstractItemView::DoubleClicked
+                                  | QAbstractItemView::SelectedClicked);
+
+    ui->txtBrowserChat->setFocusPolicy(Qt::NoFocus);
+    ui->txtBrowserChat->setOpenExternalLinks(true);
+    ui->txtBrowserChat->setStyleSheet(
+        "QTextBrowser {"
+        "   background-color: #ffffff;"
+        "   border: 1px solid #cccccc;"
+        "   font-family: 'Microsoft YaHei', sans-serif;"
+        "   font-size: 14px;"
+        "}");
+
+    ui->btnStart->setEnabled(true);
+    ui->btnStart->setIcon(QIcon(":/icons/send"));
+
+    ui->btnAudioStart->setEnabled(true);
+    ui->btnAudioStart->setIcon(QIcon(":/icons/audio_norm"));
+
+    m_pPipelineBtnGroup->addButton(ui->ckLocal, 0);
+    m_pPipelineBtnGroup->addButton(ui->ckRemote, 1);
+    m_pPipelineBtnGroup->addButton(ui->ckHybrid, 2);
+    m_pPipelineBtnGroup->setExclusive(true);
+
+    return wgt;
+}
+
+void ChatBox::_initConnectsions()
+{
+    // init BUS connect
+    connect(m_pBus, &Bus::SignalPing, this, &ChatBox::_slotPing);
+    connect(m_pBus,
+            &Bus::SignalLanguageSwitch,
+            this,
+            &ChatBox::_slotLanguageSwitch);
+    connect(m_pBus,
+            &Bus::SignalNewSessionResp,
+            this,
+            &ChatBox::_slotNewSessionResp);
+    connect(m_pBus,
+            &Bus::SignalGetSessionResp,
+            this,
+            &ChatBox::_slotGetSessionResp);
+    connect(m_pBus,
+            &Bus::SignalDelSessionResp,
+            this,
+            &ChatBox::_slotDelSessionResp);
+    connect(m_pBus,
+            &Bus::SignalQueryResp,
+            this,
+            &ChatBox::_slotQueryResp,
+            Qt::QueuedConnection);
+    connect(m_pBus,
+            &Bus::SignalStopAnswerResp,
+            this,
+            &ChatBox::_slotStopAnswerResp);
+    connect(m_pBus,
+            &Bus::SignalGetMessageInfoResp,
+            this,
+            &ChatBox::_slotGetMessageInfoResp);
+    connect(m_pBus,
+            &Bus::SignalModelInfoUpdateNtf,
+            this,
+            &ChatBox::_slotModelInfoUpdate);
+    connect(m_pBus,
+            &Bus::SignalAudioCaptureStarted,
+            this,
+            &ChatBox::_slotAudioCaptureStarted);
+    connect(m_pBus,
+            &Bus::SignalAudioCaptured,
+            this,
+            &ChatBox::_slotAudioCaptured);
+    connect(m_pBus,
+            &Bus::SignalAudioCaptureStopped,
+            this,
+            &ChatBox::_slotAudioCaptureStopped);
+
+    // init UI connect
+    connect(m_pTimer, &QTimer::timeout, this, &ChatBox::_refreshUI);
+    connect(ui->btnStart,
+            &QPushButton::clicked,
+            this,
+            &ChatBox::_slotBtnStartClicked);
+    connect(ui->btnAudioStart,
+            &QPushButton::clicked,
+            this,
+            &ChatBox::_slotBtnAudioStartClicked);
+    connect(ui->listChat,
+            &QListWidget::currentRowChanged,
+            this,
+            &ChatBox::_slotCurrentRowChanged);
+    connect(m_pPipelineBtnGroup,
+            &QButtonGroup::idClicked,
+            this,
+            &ChatBox::_slotPipelineBtnGroupClicked);
+}
+
+void ChatBox::_writeBuf(const Bus::MessageInfo &msg)
+{
+    QMutexLocker locker(&m_mu);
+    m_buf.append(msg);
+}
+
+QVector<Bus::MessageInfo> ChatBox::_readBufAll()
+{
+    QMutexLocker              locker(&m_mu);
+    QVector<Bus::MessageInfo> msgs;
+    for(auto elem : m_buf)
     {
-        qDebug() << "Message: id=" << msg.id << ", sessionId=" << msg.sessionId
-                 << ", role=" << msg.role << ", content=" << msg.content;
-        if(msg.role == "user")
-            _drawQueryRecord(msg.content);
-        else
-            _drawAnswerRecord(msg.content, true);
+        Bus::MessageInfo msg;
+        msg.id         = elem.id;
+        msg.sessionId  = elem.sessionId;
+        msg.role       = elem.role;
+        msg.content    = elem.content;
+        msg.timestamp  = elem.timestamp;
+        msg.isFinished = elem.isFinished;
+        msgs.append(msg);
     }
+
+    m_buf.clear();
+    return msgs;
 }
 
 void ChatBox::_query()
 {
+    if(!m_isAnswerFinished)
+    {
+        qDebug() << "Cannot start query, previous answer is not finished.";
+        QMessageBox::warning(
+            nullptr,
+            tr("Query Not Finished"),
+            tr("Cannot start query, previous answer is not finished."));
+        return;
+    }
+
     QString model = ui->comboModel->currentText();
     QString query = ui->editInput->toPlainText();
     auto    item  = ui->listChat->currentItem();
@@ -495,13 +630,14 @@ void ChatBox::_query()
 
     auto sessionId = item->data(Qt::UserRole).toLongLong();
     qDebug() << "Start Question for sessionId: " << sessionId;
-    _drawQueryRecord(query);
-    _refreshAnswerFinishState(false);
-    _addMsgRecord(sessionId,
-                  "user",
-                  query,
-                  QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss"),
-                  true);
+    auto msg =
+        _convert(-1,
+                 sessionId,
+                 "user",
+                 query,
+                 QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss"),
+                 true);
+    _writeBuf(msg);
     ui->editInput->clear();
 
     Bus::ModelConfig config;
@@ -517,10 +653,23 @@ void ChatBox::_query()
 
 void ChatBox::_stopQuery()
 {
+    if(m_isAnswerFinished)
+    {
+        qDebug() << "Cannot stop query, answer is already finished.";
+        QMessageBox::warning(
+            nullptr,
+            tr("Stop Query Failed"),
+            tr("Cannot stop query, answer is already finished."));
+        return;
+    }
+
     auto item = ui->listChat->currentItem();
     if(item == nullptr)
     {
         qDebug() << "No session selected, cannot stop query.";
+        QMessageBox::warning(nullptr,
+                             tr("Stop Query Failed"),
+                             tr("No session selected, cannot stop query."));
         return;
     }
 
@@ -529,56 +678,104 @@ void ChatBox::_stopQuery()
     emit m_pBus->SignalStopAnswer(sessionId);
 }
 
-void ChatBox::_addMsgRecord(const int64_t  sessionId,
-                            const QString &role,
-                            const QString &content,
-                            const QString &timestamp,
-                            const bool     isFinished)
+void ChatBox::_startAudioRecord()
 {
-    if(!m_messageInfos.contains(sessionId))
+    if(m_isAudioStarted)
     {
-        m_messageInfos[sessionId] = QVector<Bus::MessageInfo>();
+        qDebug() << "Cannot start audio record, is already started.";
+        QMessageBox::warning(nullptr,
+                             tr("Start Audio Record Failed"),
+                             tr("Cannot start audio record, previous recording "
+                                "is not finished."));
+        return;
     }
 
-    if(m_messageInfos[sessionId].empty())
+    QAudioFormat format;
+    format.setSampleRate(44100);
+    format.setChannelCount(2);
+    format.setSampleFormat(QAudioFormat::Int16);
+    emit m_pBus->SignalAudioCaptureStart(format, QByteArray());
+    qDebug() << "Start Audio Record with SampleRate:" << format.sampleRate()
+             << ", ChannelCount:" << format.channelCount()
+             << ", SampleFormat:Int16";
+}
+
+void ChatBox::_stopAudioRecord()
+{
+    if(!m_isAudioStarted)
     {
-        Bus::MessageInfo msg;
-        msg.id        = -1;
-        msg.sessionId = sessionId;
-        msg.role      = role;
-        msg.content   = content;
-        msg.timestamp = timestamp;
-        m_messageInfos[sessionId].append(msg);
-        m_isLastMsgFinished = isFinished;
+        qDebug() << "Cannot stop audio record, is already stopped.";
+        return;
+    }
+
+    emit m_pBus->SignalAudioCaptureStop(m_audioId);
+    qDebug() << "Stop Audio Record with audioId:" << m_audioId;
+}
+
+void ChatBox::_setAudioRecordState(bool isStarted, qint64 id)
+{
+    if(isStarted)
+    {
+        m_isAudioStarted = true;
+        m_audioId        = id;
+
+        ui->btnAudioStart->setChecked(false);
+        ui->btnAudioStart->setIcon(QIcon(":/icons/audio_recording"));
+    } else
+    {
+        m_isAudioStarted = false;
+        m_audioId        = id;
+
+        ui->btnAudioStart->setChecked(true);
+        ui->btnAudioStart->setIcon(QIcon(":/icons/audio_norm"));
+    }
+}
+
+void ChatBox::_addMsgRecord(const Bus::MessageInfo &msg)
+{
+    if(!m_messageInfos.contains(msg.sessionId))
+    {
+        m_messageInfos[msg.sessionId] = QVector<Bus::MessageInfo>();
+    }
+
+    if(m_messageInfos[msg.sessionId].empty())
+    {
+        m_messageInfos[msg.sessionId].append(msg);
+        m_isLastMsgFinished = msg.isFinished;
         return;
     }
 
     if(m_isLastMsgFinished)
     {
-        Bus::MessageInfo msg;
-        msg.id        = -1;
-        msg.sessionId = sessionId;
-        msg.role      = role;
-        msg.content   = content;
-        msg.timestamp = timestamp;
-        m_messageInfos[sessionId].append(msg);
-        m_isLastMsgFinished = isFinished;
+        m_messageInfos[msg.sessionId].append(msg);
+        m_isLastMsgFinished = msg.isFinished;
         return;
     }
 
-    if(m_messageInfos[sessionId].last().role != role)
+    if(m_messageInfos[msg.sessionId].last().role != msg.role)
     {
-        Bus::MessageInfo msg;
-        msg.id        = -1;
-        msg.sessionId = sessionId;
-        msg.role      = role;
-        msg.content   = content;
-        msg.timestamp = timestamp;
-        m_messageInfos[sessionId].append(msg);
-        m_isLastMsgFinished = isFinished;
+        m_messageInfos[msg.sessionId].append(msg);
+        m_isLastMsgFinished = msg.isFinished;
         return;
     }
 
-    m_messageInfos[sessionId].last().content += content;
-    m_isLastMsgFinished = isFinished;
+    m_messageInfos[msg.sessionId].last().content += msg.content;
+    m_isLastMsgFinished = msg.isFinished;
+}
+
+Bus::MessageInfo ChatBox::_convert(const int64_t  msg_id,
+                                   const int64_t  sessionId,
+                                   const QString &role,
+                                   const QString &content,
+                                   const QString &timestamp,
+                                   const bool     isFinished)
+{
+    Bus::MessageInfo msg;
+    msg.id         = -1;
+    msg.sessionId  = sessionId;
+    msg.role       = role;
+    msg.content    = content;
+    msg.timestamp  = timestamp;
+    msg.isFinished = isFinished;
+    return msg;
 }
