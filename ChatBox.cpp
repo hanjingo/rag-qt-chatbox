@@ -242,8 +242,8 @@ void ChatBox::_slotAudioCaptured(const qint64 id, const QByteArray &data)
     if(!m_isAudioStarted || m_audioId != id)
         return;
 
-    qDebug() << "Audio Captured in ChatBox. id: " << id
-             << ", data size: " << data.size();
+    // qDebug() << "Audio Captured in ChatBox. id: " << id
+    //          << ", data size: " << data.size();
     emit m_pBus->SignalAudioTranslate(data, QString());
 }
 
@@ -261,6 +261,15 @@ void ChatBox::_slotAudioTranslated(const int               errorCode,
 {
     qDebug() << "Audio translated with errorCode:" << errorCode
              << ", segments:" << segments;
+    if(errorCode != 0)
+    {
+        qDebug() << "Failed to translate audio with errorCode: " << errorCode;
+        return;
+    }
+
+    if(!m_isAudioStarted)
+        return;
+
     QString content = ui->editInput->toPlainText();
     for(auto seg : segments)
         content.append(seg);
