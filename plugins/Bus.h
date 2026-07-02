@@ -122,6 +122,11 @@ class Bus : public QObject
     void SignalAudioCaptureStop(const qint64 id);
     void SignalAudioCaptureStopped(const qint64 id);
 
+    void SignalAudioTranslate(const QByteArray &src, const QString &id);
+    void SignalAudioTranslated(const int               errorCode,
+                               const QByteArray       &src,
+                               const QVector<QString> &segments);
+
   private:
     explicit Bus(QObject *parent = nullptr)
         : QObject(parent) {};

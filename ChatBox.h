@@ -9,6 +9,8 @@
 #include <QHash>
 #include <QMutex>
 #include <QMutexLocker>
+#include <QBuffer>
+#include <QByteArray>
 
 #include "Bus.h"
 #include "PluginInterface.h"
@@ -54,6 +56,9 @@ class ChatBox : public QObject, public PluginInterface
     void _slotAudioCaptureStarted(const qint64 id, const QByteArray devId);
     void _slotAudioCaptured(const qint64 id, const QByteArray &data);
     void _slotAudioCaptureStopped(const qint64 id);
+    void _slotAudioTranslated(const int               errorCode,
+                              const QByteArray       &src,
+                              const QVector<QString> &segments);
 
     // ui signal
     void _slotBtnStartClicked();
@@ -100,8 +105,9 @@ class ChatBox : public QObject, public PluginInterface
     bool m_isAnswerFinished  = true;
     bool m_isLastMsgFinished = true;
 
-    qint64 m_audioId        = -1;
-    bool   m_isAudioStarted = false;
+    qint64  m_audioId        = -1;
+    bool    m_isAudioStarted = false;
+    QBuffer m_audioBuffer;
 
     QString m_streamingAnswer;
     QString m_streamTimestamp;

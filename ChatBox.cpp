@@ -242,7 +242,9 @@ void ChatBox::_slotAudioCaptured(const qint64 id, const QByteArray &data)
     if(!m_isAudioStarted || m_audioId != id)
         return;
 
-    qDebug() << "Audio Captured:" << data;
+    qDebug() << "Audio Captured in ChatBox. id: " << id
+             << ", data size: " << data.size();
+    emit m_pBus->SignalAudioTranslate(data, QString());
 }
 
 void ChatBox::_slotAudioCaptureStopped(const qint64 id)
@@ -251,6 +253,19 @@ void ChatBox::_slotAudioCaptureStopped(const qint64 id)
         return;
 
     _setAudioRecordState(false);
+}
+
+void ChatBox::_slotAudioTranslated(const int               errorCode,
+                                   const QByteArray       &src,
+                                   const QVector<QString> &segments)
+{
+    qDebug() << "Audio translated with errorCode:" << errorCode
+             << ", segments:" << segments;
+    QString content = ui->editInput->toPlainText();
+    for(auto seg : segments)
+        content.append(seg);
+
+    ui->editInput->setText(content);
 }
 
 void ChatBox::_slotBtnStartClicked()
@@ -569,6 +584,10 @@ void ChatBox::_initConnectsions()
             &Bus::SignalAudioCaptureStopped,
             this,
             &ChatBox::_slotAudioCaptureStopped);
+    connect(m_pBus,
+            &Bus::SignalAudioTranslated,
+            this,
+            &ChatBox::_slotAudioTranslated);
 
     // init UI connect
     connect(m_pTimer, &QTimer::timeout, this, &ChatBox::_refreshUI);
@@ -600,18 +619,7 @@ QVector<Bus::MessageInfo> ChatBox::_readBufAll()
 {
     QMutexLocker              locker(&m_mu);
     QVector<Bus::MessageInfo> msgs;
-    for(auto elem : m_buf)
-    {
-        Bus::MessageInfo msg;
-        msg.id         = elem.id;
-        msg.sessionId  = elem.sessionId;
-        msg.role       = elem.role;
-        msg.content    = elem.content;
-        msg.timestamp  = elem.timestamp;
-        msg.isFinished = elem.isFinished;
-        msgs.append(msg);
-    }
-
+    msgs = m_buf;
     m_buf.clear();
     return msgs;
 }
@@ -703,8 +711,8 @@ void ChatBox::_startAudioRecord()
     }
 
     QAudioFormat format;
-    format.setSampleRate(44100);
-    format.setChannelCount(2);
+    format.setSampleRate(16000);
+    format.setChannelCount(1);
     format.setSampleFormat(QAudioFormat::Int16);
     emit m_pBus->SignalAudioCaptureStart(format, QByteArray());
     qDebug() << "Start Audio Record with SampleRate:" << format.sampleRate()
