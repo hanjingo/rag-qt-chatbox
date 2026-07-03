@@ -52,7 +52,7 @@ class ChatBox : public QObject, public PluginInterface
     void _slotStopAnswerResp(const int64_t errorCode, const int64_t sessionId);
     void _slotGetMessageInfoResp(const int                        errorCode,
                                  const QVector<Bus::MessageInfo> &messages);
-    void _slotModelInfoUpdate(const QVector<Bus::ModelConfig> &modelInfos);
+    void _slotModelInfoUpdate(const QVector<Bus::ModelInfo> &modelInfos);
     void _slotAudioCaptureStarted(const qint64 id, const QByteArray devId);
     void _slotAudioCaptured(const qint64 id, const QByteArray &data);
     void _slotAudioCaptureStopped(const qint64 id);
@@ -113,7 +113,7 @@ class ChatBox : public QObject, public PluginInterface
     QString m_streamTimestamp;
     int     m_streamStartPos = -1;
 
-    QVector<Bus::ModelConfig>                 m_modelInfos;
+    QVector<Bus::ModelInfo>                   m_modelInfos;
     QVector<Bus::MessageInfo>                 m_buf;
     QHash<int64_t, QVector<Bus::MessageInfo>> m_messageInfos;
 };

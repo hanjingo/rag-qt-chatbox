@@ -213,7 +213,7 @@ void ChatBox::_slotGetMessageInfoResp(const int errorCode,
     }
 }
 
-void ChatBox::_slotModelInfoUpdate(const QVector<Bus::ModelConfig> &modelInfos)
+void ChatBox::_slotModelInfoUpdate(const QVector<Bus::ModelInfo> &modelInfos)
 {
     qDebug()
         << "ChatBox received ModelInfoUpdate signal from Bus. model count: "
@@ -222,7 +222,7 @@ void ChatBox::_slotModelInfoUpdate(const QVector<Bus::ModelConfig> &modelInfos)
     for(const auto &model : modelInfos)
     {
         m_modelInfos.append(model);
-        qDebug() << "Model id: " << model.id << ", addr: " << model.addr;
+        qDebug() << "Model id: " << model.id;
     }
 
     _refreshModelItem();
@@ -669,15 +669,15 @@ void ChatBox::_query()
     _writeBuf(msg);
     ui->editInput->clear();
 
-    Bus::ModelConfig config;
+    Bus::ModelInfo info;
     for(auto item : m_modelInfos)
     {
         if(item.id != model)
             continue;
 
-        config = item;
+        info = item;
     }
-    emit m_pBus->SignalQuery(sessionId, query, model, config);
+    emit m_pBus->SignalQuery(sessionId, query, model, info);
 }
 
 void ChatBox::_stopQuery()
