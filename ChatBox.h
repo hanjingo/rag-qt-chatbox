@@ -53,6 +53,7 @@ class ChatBox : public QObject, public PluginInterface
     void _slotGetMessageInfoResp(const int                        errorCode,
                                  const QVector<Bus::MessageInfo> &messages);
     void _slotModelInfoUpdate(const QVector<Bus::ModelInfo> &modelInfos);
+    void _slotAudioParamUpdateNtf(const QVector<Bus::AudioParam> &params);
     void _slotAudioCaptureStarted(const qint64 id, const QByteArray devId);
     void _slotAudioCaptured(const qint64 id, const QByteArray &data);
     void _slotAudioCaptureStopped(const qint64 id);
@@ -104,6 +105,8 @@ class ChatBox : public QObject, public PluginInterface
     void _clearAudioBuffer();
     bool _isAudioEnough();
     bool _isAudioOverflow();
+    int  _minBufferSize();
+    int  _maxBufferSize();
 
   private:
     Ui::ChatBox  *ui;
@@ -122,14 +125,13 @@ class ChatBox : public QObject, public PluginInterface
     bool       m_isAudioStarted = false;
     QByteArray m_audioBuffer;
     QMutex     m_audioBufferMutex;
-    int        m_minBufferSize   = 16000 * 2; // 16kHz * 2 bytes per sample
-    int        m_maxBufferSize   = 64000 * 2; // 64k
-    int        m_flushIntervalMs = 300;       // flush every 300ms
+    int        m_flushIntervalMs = 300; // flush every 300ms
 
     QString m_streamingAnswer;
     QString m_streamTimestamp;
     int     m_streamStartPos = -1;
 
+    QVector<Bus::AudioParam>                  m_audioParams;
     QVector<Bus::ModelInfo>                   m_modelInfos;
     QVector<Bus::MessageInfo>                 m_buf;
     QHash<int64_t, QVector<Bus::MessageInfo>> m_messageInfos;

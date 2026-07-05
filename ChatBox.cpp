@@ -235,6 +235,22 @@ void ChatBox::_slotModelInfoUpdate(const QVector<Bus::ModelInfo> &modelInfos)
     _refreshModelItem();
 }
 
+void ChatBox::_slotAudioParamUpdateNtf(const QVector<Bus::AudioParam> &params)
+{
+    qDebug()
+        << "ChatBox received AudioParamUpdate signal from Bus. param count: "
+        << params.size();
+    m_audioParams.clear();
+    for(const auto &param : params)
+    {
+        m_audioParams.append(param);
+        qDebug() << "AudioParam translatorId: " << param.translatorId
+                 << ", minNewSampleSize: " << param.minNewSampleSize
+                 << ", minAudioBufferSize: " << param.minAudioBufferSize
+                 << ", maxAudioBufferSize: " << param.maxAudioBufferSize;
+    }
+}
+
 void ChatBox::_slotAudioCaptureStarted(const qint64 id, const QByteArray devId)
 {
     if(m_isAudioStarted || (m_audioId != -1 && m_audioId != id))
@@ -604,6 +620,10 @@ void ChatBox::_initConnectsions()
             this,
             &ChatBox::_slotModelInfoUpdate);
     connect(m_pBus,
+            &Bus::SignalAudioParamUpdateNtf,
+            this,
+            &ChatBox::_slotAudioParamUpdateNtf);
+    connect(m_pBus,
             &Bus::SignalAudioCaptureStarted,
             this,
             &ChatBox::_slotAudioCaptureStarted);
@@ -851,7 +871,7 @@ Bus::MessageInfo ChatBox::_convert(const int64_t  msg_id,
 void ChatBox::_appendAudioData(const QByteArray &data)
 {
     QMutexLocker locker(&m_audioBufferMutex);
-    if(m_audioBuffer.size() + data.size() > m_minBufferSize)
+    if(m_audioBuffer.size() + data.size() > _minBufferSize())
         _flushAudioBuffer(false);
 
     m_audioBuffer.append(data);
@@ -863,7 +883,7 @@ void ChatBox::_flushAudioBuffer(bool force)
     if(m_audioBuffer.isEmpty())
         return;
 
-    if(!force && m_audioBuffer.size() < m_minBufferSize / 2)
+    if(!force && m_audioBuffer.size() < _minBufferSize() / 2)
         return;
 
     qDebug() << "Flushing audio buffer, size:" << m_audioBuffer.size()
@@ -892,11 +912,27 @@ void ChatBox::_slotFlushAudioBuffer()
 bool ChatBox::_isAudioEnough()
 {
     QMutexLocker locker(&m_audioBufferMutex);
-    return m_audioBuffer.size() >= m_minBufferSize;
+    return m_audioBuffer.size() >= _minBufferSize();
 }
 
 bool ChatBox::_isAudioOverflow()
 {
     QMutexLocker locker(&m_audioBufferMutex);
-    return m_audioBuffer.size() >= m_maxBufferSize;
+    return m_audioBuffer.size() >= _maxBufferSize();
+}
+
+int ChatBox::_minBufferSize()
+{
+    if(m_audioParams.isEmpty())
+        return 16000 * 2; // 16kHz * 2 bytes per sample
+
+    return m_audioParams.first().minAudioBufferSize;
+}
+
+int ChatBox::_maxBufferSize()
+{
+    if(m_audioParams.isEmpty())
+        return 64000 * 2; // 64k
+
+    return m_audioParams.first().maxAudioBufferSize;
 }

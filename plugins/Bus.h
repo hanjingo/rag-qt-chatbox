@@ -64,6 +64,14 @@ class Bus : public QObject
         qint32  platform;
     };
 
+    struct AudioParam
+    {
+        QString translatorId;
+        int     minNewSampleSize;
+        int     minAudioBufferSize;
+        int     maxAudioBufferSize;
+    };
+
   public:
     static Bus *Instance();
     static void Version(int8_t &major, int8_t &minor, int8_t &patch);
@@ -75,6 +83,8 @@ class Bus : public QObject
     void SignalLanguageSwitch(const QString &lang);
 
     void SignalModelInfoUpdateNtf(const QVector<Bus::ModelInfo> &modelInfos);
+
+    void SignalAudioParamUpdateNtf(const QVector<Bus::AudioParam> &params);
 
     void SignalNewSession(const QString &title,
                           const QString &content,
