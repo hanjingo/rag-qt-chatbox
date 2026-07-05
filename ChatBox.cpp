@@ -10,11 +10,18 @@ ChatBox::ChatBox(QWidget *parent)
     : ui(new Ui::ChatBox)
     , m_pPipelineBtnGroup(new QButtonGroup(this))
     , m_pTimer(new QTimer(this))
+    , m_pAudioFlushTimer(new QTimer(this))
 {
 }
 
 ChatBox::~ChatBox()
 {
+    if(m_pAudioFlushTimer)
+    {
+        m_pAudioFlushTimer->stop();
+        delete m_pAudioFlushTimer;
+        m_pAudioFlushTimer = nullptr;
+    }
     delete ui;
 }
 
@@ -242,9 +249,16 @@ void ChatBox::_slotAudioCaptured(const qint64 id, const QByteArray &data)
     if(!m_isAudioStarted || m_audioId != id)
         return;
 
-    // qDebug() << "Audio Captured in ChatBox. id: " << id
-    //          << ", data size: " << data.size();
-    emit m_pBus->SignalAudioTranslate(data, QString());
+    if(data.isEmpty())
+        return;
+
+    _appendAudioData(data);
+
+    // lock and flush buffer if size exceeds threshold
+    if(_isAudioEnough())
+    {
+        _flushAudioBuffer(false);
+    }
 }
 
 void ChatBox::_slotAudioCaptureStopped(const qint64 id)
@@ -255,12 +269,13 @@ void ChatBox::_slotAudioCaptureStopped(const qint64 id)
     _setAudioRecordState(false);
 }
 
-void ChatBox::_slotAudioTranslated(const int               errorCode,
-                                   const QByteArray       &src,
-                                   const QVector<QString> &segments)
+void ChatBox::_slotRecognizeResp(const int      errorCode,
+                                 const QString &transcript,
+                                 const bool     isFinished,
+                                 const double   confidence)
 {
-    qDebug() << "Audio translated with errorCode:" << errorCode
-             << ", segments:" << segments;
+    qDebug() << "Audio recognize with errorCode:" << errorCode
+             << ", transcript:" << transcript;
     if(errorCode != 0)
     {
         qDebug() << "Failed to translate audio with errorCode: " << errorCode;
@@ -271,10 +286,14 @@ void ChatBox::_slotAudioTranslated(const int               errorCode,
         return;
 
     QString content = ui->editInput->toPlainText();
-    for(auto seg : segments)
-        content.append(seg);
-
+    content += transcript;
     ui->editInput->setText(content);
+}
+
+void ChatBox::_slotStopRecognizeResp(const int errorCode, const qint64 streamId)
+{
+    qDebug() << "Audio stop recognize with errorCode:" << errorCode
+             << ", streamId:" << streamId;
 }
 
 void ChatBox::_slotBtnStartClicked()
@@ -541,6 +560,9 @@ QWidget *ChatBox::_initUI()
     m_pPipelineBtnGroup->addButton(ui->ckHybrid, 2);
     m_pPipelineBtnGroup->setExclusive(true);
 
+    // start audio flush timer
+    m_pAudioFlushTimer->start(m_flushIntervalMs);
+
     return wgt;
 }
 
@@ -594,9 +616,14 @@ void ChatBox::_initConnectsions()
             this,
             &ChatBox::_slotAudioCaptureStopped);
     connect(m_pBus,
-            &Bus::SignalAudioTranslated,
+            &Bus::SignalRecognizeResp,
             this,
-            &ChatBox::_slotAudioTranslated);
+            &ChatBox::_slotRecognizeResp);
+    connect(m_pBus,
+            &Bus::SignalStopRecognizeResp,
+            this,
+            &ChatBox::_slotStopRecognizeResp);
+
 
     // init UI connect
     connect(m_pTimer, &QTimer::timeout, this, &ChatBox::_refreshUI);
@@ -616,6 +643,12 @@ void ChatBox::_initConnectsions()
             &QButtonGroup::idClicked,
             this,
             &ChatBox::_slotPipelineBtnGroupClicked);
+
+    // init timer connect
+    connect(m_pAudioFlushTimer,
+            &QTimer::timeout,
+            this,
+            &ChatBox::_slotFlushAudioBuffer);
 }
 
 void ChatBox::_writeBuf(const Bus::MessageInfo &msg)
@@ -750,6 +783,8 @@ void ChatBox::_setAudioRecordState(bool isStarted, qint64 id)
 
         ui->btnAudioStart->setChecked(false);
         ui->btnAudioStart->setIcon(QIcon(":/icons/audio_recording"));
+
+        _clearAudioBuffer();
     } else
     {
         m_isAudioStarted = false;
@@ -757,6 +792,10 @@ void ChatBox::_setAudioRecordState(bool isStarted, qint64 id)
 
         ui->btnAudioStart->setChecked(true);
         ui->btnAudioStart->setIcon(QIcon(":/icons/audio_norm"));
+
+        _flushAudioBuffer();
+
+        emit m_pBus->SignalStopRecognize(id);
     }
 }
 
@@ -807,4 +846,57 @@ Bus::MessageInfo ChatBox::_convert(const int64_t  msg_id,
     msg.timestamp  = timestamp;
     msg.isFinished = isFinished;
     return msg;
+}
+
+void ChatBox::_appendAudioData(const QByteArray &data)
+{
+    QMutexLocker locker(&m_audioBufferMutex);
+    if(m_audioBuffer.size() + data.size() > m_minBufferSize)
+        _flushAudioBuffer(false);
+
+    m_audioBuffer.append(data);
+}
+
+void ChatBox::_flushAudioBuffer(bool force)
+{
+    QMutexLocker locker(&m_audioBufferMutex);
+    if(m_audioBuffer.isEmpty())
+        return;
+
+    if(!force && m_audioBuffer.size() < m_minBufferSize / 2)
+        return;
+
+    qDebug() << "Flushing audio buffer, size:" << m_audioBuffer.size()
+             << ", force:" << force;
+
+    emit m_pBus->SignalRecognize(m_audioId,
+                                 m_audioBuffer,
+                                 "ggml/ggml-small-q8_0");
+    m_audioBuffer.clear();
+}
+
+void ChatBox::_clearAudioBuffer()
+{
+    QMutexLocker locker(&m_audioBufferMutex);
+    m_audioBuffer.clear();
+}
+
+void ChatBox::_slotFlushAudioBuffer()
+{
+    if(m_isAudioStarted)
+    {
+        _flushAudioBuffer(false);
+    }
+}
+
+bool ChatBox::_isAudioEnough()
+{
+    QMutexLocker locker(&m_audioBufferMutex);
+    return m_audioBuffer.size() >= m_minBufferSize;
+}
+
+bool ChatBox::_isAudioOverflow()
+{
+    QMutexLocker locker(&m_audioBufferMutex);
+    return m_audioBuffer.size() >= m_maxBufferSize;
 }

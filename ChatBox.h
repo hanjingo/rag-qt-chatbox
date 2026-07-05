@@ -56,15 +56,20 @@ class ChatBox : public QObject, public PluginInterface
     void _slotAudioCaptureStarted(const qint64 id, const QByteArray devId);
     void _slotAudioCaptured(const qint64 id, const QByteArray &data);
     void _slotAudioCaptureStopped(const qint64 id);
-    void _slotAudioTranslated(const int               errorCode,
-                              const QByteArray       &src,
-                              const QVector<QString> &segments);
+    void _slotRecognizeResp(const int      errorCode,
+                            const QString &transcript,
+                            const bool     isFinished,
+                            const double   confidence);
+    void _slotStopRecognizeResp(const int errorCode, const qint64 streamId);
 
     // ui signal
     void _slotBtnStartClicked();
     void _slotBtnAudioStartClicked();
     void _slotCurrentRowChanged(int row);
     void _slotPipelineBtnGroupClicked(int id);
+
+    // flush buffer
+    void _slotFlushAudioBuffer();
 
   private:
     void _refreshUI();
@@ -94,6 +99,12 @@ class ChatBox : public QObject, public PluginInterface
                               const QString &timestamp,
                               const bool     isFinished);
 
+    void _appendAudioData(const QByteArray &data);
+    void _flushAudioBuffer(bool force = false);
+    void _clearAudioBuffer();
+    bool _isAudioEnough();
+    bool _isAudioOverflow();
+
   private:
     Ui::ChatBox  *ui;
     QButtonGroup *m_pPipelineBtnGroup;
@@ -105,9 +116,15 @@ class ChatBox : public QObject, public PluginInterface
     bool m_isAnswerFinished  = true;
     bool m_isLastMsgFinished = true;
 
-    qint64  m_audioId        = -1;
-    bool    m_isAudioStarted = false;
-    QBuffer m_audioBuffer;
+    // audio
+    QTimer    *m_pAudioFlushTimer;
+    qint64     m_audioId        = -1;
+    bool       m_isAudioStarted = false;
+    QByteArray m_audioBuffer;
+    QMutex     m_audioBufferMutex;
+    int        m_minBufferSize   = 16000 * 2; // 16kHz * 2 bytes per sample
+    int        m_maxBufferSize   = 64000 * 2; // 64k
+    int        m_flushIntervalMs = 300;       // flush every 300ms
 
     QString m_streamingAnswer;
     QString m_streamTimestamp;

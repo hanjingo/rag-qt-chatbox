@@ -33,7 +33,7 @@ class Bus : public QObject
         bool    isFinished;
     };
 
-    struct ModelConfig
+    struct ModelInfo
     {
         // base info
         QString id;
@@ -43,14 +43,7 @@ class Bus : public QObject
         QString addr;
         QString pipeline;
         qint32  cost;
-        QString apiKey;
-
-        // sampling parameters
-        float temperature;
-        float topP;
-        float topK;
-        float reputationPenalty;
-        float minP;
+        QString hash;
 
         // context parameters
         int     ctxWindowSize;
@@ -81,7 +74,7 @@ class Bus : public QObject
 
     void SignalLanguageSwitch(const QString &lang);
 
-    void SignalModelInfoUpdateNtf(const QVector<Bus::ModelConfig> &modelInfos);
+    void SignalModelInfoUpdateNtf(const QVector<Bus::ModelInfo> &modelInfos);
 
     void SignalNewSession(const QString &title,
                           const QString &content,
@@ -95,10 +88,10 @@ class Bus : public QObject
 
     void SignalDelSessionResp(const int errorCode, const QVector<int64_t> &ids);
 
-    void SignalQuery(const int64_t           sessionId,
-                     const QString          &query,
-                     const QString          &model,
-                     const Bus::ModelConfig &config);
+    void SignalQuery(const int64_t         sessionId,
+                     const QString        &query,
+                     const QString        &model,
+                     const Bus::ModelInfo &infos);
     void SignalQueryResp(const int      errorCode,
                          const int64_t  sessionId,
                          const QString &content,
@@ -122,10 +115,16 @@ class Bus : public QObject
     void SignalAudioCaptureStop(const qint64 id);
     void SignalAudioCaptureStopped(const qint64 id);
 
-    void SignalAudioTranslate(const QByteArray &src, const QString &id);
-    void SignalAudioTranslated(const int               errorCode,
-                               const QByteArray       &src,
-                               const QVector<QString> &segments);
+    void SignalRecognize(const qint64      sessionId,
+                         const QByteArray &src,
+                         const QString    &translatorId);
+    void SignalRecognizeResp(const int      errorCode,
+                             const QString &transcript,
+                             const bool     isFinished,
+                             const double   confidence);
+
+    void SignalStopRecognize(const qint64 sessionId);
+    void SignalStopRecognizeResp(const int errorCode, const qint64 sessionId);
 
   private:
     explicit Bus(QObject *parent = nullptr)
