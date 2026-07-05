@@ -29,6 +29,7 @@ jobs:
           cache: true
           aqtversion: '==3.3.*'
           extra: '--base ${{ env.QT_MIRROR_BASE }} --timeout 30'
+          modules: 'qtmultimedia'
 
       - name: Create build directory
         run: mkdir build
@@ -85,6 +86,7 @@ jobs:
           cache: true
           aqtversion: '==3.3.*'
           extra: '--base ${{ env.QT_MIRROR_BASE }} --timeout 30'
+          modules: 'qtmultimedia'
 
       - name: Install dependencies
         run: |
@@ -139,6 +141,7 @@ jobs:
           cache: true
           aqtversion: '==3.3.*'
           extra: '--base ${{ env.QT_MIRROR_BASE }} --timeout 30'
+          modules: 'qtmultimedia'
 
       - name: Install dependencies
         run: |
@@ -193,7 +196,8 @@ jobs:
           cache: true
           aqtversion: '==3.3.*'
           extra: '--base ${{ env.QT_MIRROR_BASE }} --timeout 30'
-
+          modules: 'qtmultimedia'
+          
       - name: Install dependencies
         run: |
           brew install cmake
