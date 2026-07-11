@@ -4,5 +4,6 @@
         <file alias="audio_recording">res/icons/audio_recording.png</file>
         <file alias="send">res/icons/send.png</file>
         <file alias="pause_check">res/icons/puse_check.svg</file>
+        <file alias="attach">res/icons/attach.png</file>
     </qresource>
 </RCC>

@@ -5,6 +5,7 @@
 #include <QString>
 #include <QMessageBox>
 #include <QAudioFormat>
+#include <QFileDialog>
 
 ChatBox::ChatBox(QWidget *parent)
     : ui(new Ui::ChatBox)
@@ -312,6 +313,12 @@ void ChatBox::_slotStopRecognizeResp(const int errorCode, const qint64 streamId)
              << ", streamId:" << streamId;
 }
 
+void ChatBox::_slotUploadResp(const int errorCode, const QString &filePath)
+{
+    qDebug() << "Upload response received with errorCode:" << errorCode
+             << ", filePath:" << filePath;
+}
+
 void ChatBox::_slotBtnStartClicked()
 {
     qDebug() << "Start button clicked. m_isAnswerFinished: "
@@ -323,6 +330,17 @@ void ChatBox::_slotBtnStartClicked()
         _query();
     else // stop query
         _stopQuery();
+}
+
+void ChatBox::_slotBtnAttachClicked()
+{
+    QString filePath =
+        QFileDialog::getOpenFileName(nullptr,
+                                     tr("Select File or Directory"),
+                                     "",
+                                     tr("Select File or Directory(*.*)"));
+    emit m_pBus->SignalUpload(filePath);
+    qDebug() << "Attach button clicked with filePath: " << filePath;
 }
 
 void ChatBox::_slotBtnAudioStartClicked()
@@ -383,7 +401,7 @@ void ChatBox::_refreshModelItem()
     ui->comboModel->clear();
     for(auto item : m_modelInfos)
     {
-        if(item.pipeline != pipeline)
+        if(item.pipeline != pipeline && pipeline != "hybrid")
             continue;
 
         ui->comboModel->addItem(item.id);
@@ -562,6 +580,15 @@ QWidget *ChatBox::_initUI()
     ui->btnStart->setEnabled(true);
     ui->btnStart->setIcon(QIcon(":/icons/send"));
 
+    ui->btnAttach->setStyleSheet("QPushButton {"
+                                 "   background - color : #7B8DA3;"
+                                 "   qproperty - iconSize : 56px 56px;"
+                                 "border:"
+                                 "   none;"
+                                 "}");
+    ui->btnAttach->setEnabled(true);
+    ui->btnAttach->setIcon(QIcon(":/icons/attach"));
+
     ui->btnAudioStart->setStyleSheet("QPushButton {"
                                      "   background - color : #7B8DA3;"
                                      "   qproperty - iconSize : 56px 56px;"
@@ -643,6 +670,7 @@ void ChatBox::_initConnectsions()
             &Bus::SignalStopRecognizeResp,
             this,
             &ChatBox::_slotStopRecognizeResp);
+    connect(m_pBus, &Bus::SignalUploadResp, this, &ChatBox::_slotUploadResp);
 
 
     // init UI connect
@@ -651,6 +679,10 @@ void ChatBox::_initConnectsions()
             &QPushButton::clicked,
             this,
             &ChatBox::_slotBtnStartClicked);
+    connect(ui->btnAttach,
+            &QPushButton::clicked,
+            this,
+            &ChatBox::_slotBtnAttachClicked);
     connect(ui->btnAudioStart,
             &QPushButton::clicked,
             this,

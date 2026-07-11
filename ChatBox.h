@@ -62,9 +62,11 @@ class ChatBox : public QObject, public PluginInterface
                             const bool     isFinished,
                             const double   confidence);
     void _slotStopRecognizeResp(const int errorCode, const qint64 streamId);
+    void _slotUploadResp(const int errorCode, const QString &filePath);
 
     // ui signal
     void _slotBtnStartClicked();
+    void _slotBtnAttachClicked();
     void _slotBtnAudioStartClicked();
     void _slotCurrentRowChanged(int row);
     void _slotPipelineBtnGroupClicked(int id);
