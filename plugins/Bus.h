@@ -5,6 +5,7 @@
 #include <QString>
 #include <QVector>
 #include <QAudioFormat>
+#include <QJsonObject>
 
 #define BUS_VERSION_MAJOR 0
 #define BUS_VERSION_MINOR 0
@@ -53,7 +54,12 @@ class Bus : public QObject
         QString prompt;
     };
 
-    struct Skill
+    struct MemoryInfo
+    {
+        QString id;
+    };
+
+    struct Plugin
     {
         QString hash;
         QString name;
@@ -83,6 +89,7 @@ class Bus : public QObject
     void SignalLanguageSwitch(const QString &lang);
 
     void SignalModelInfoUpdateNtf(const QVector<Bus::ModelInfo> &modelInfos);
+    void SignalMemoryInfoUpdateNtf(const QVector<Bus::MemoryInfo> &memoryInfos);
 
     void SignalAudioParamUpdateNtf(const QVector<Bus::AudioParam> &params);
 
@@ -135,6 +142,18 @@ class Bus : public QObject
 
     void SignalStopRecognize(const qint64 sessionId);
     void SignalStopRecognizeResp(const int errorCode, const qint64 sessionId);
+
+    void SignalUpload(const QString &filePath);
+    void SignalUploadResp(const int errorCode, const QString &filePath);
+
+    void SignalRetrieve(const QString &question,
+                        const int      topK,
+                        const QString &memoryId);
+    void SignalRetrieveResp(const int                   errorCode,
+                            const QString              &question,
+                            const int                   topK,
+                            const QString              &memoryId,
+                            const QVector<QJsonObject> &memorys);
 
   private:
     explicit Bus(QObject *parent = nullptr)

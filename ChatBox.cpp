@@ -6,9 +6,11 @@
 #include <QMessageBox>
 #include <QAudioFormat>
 #include <QFileDialog>
+#include <QJsonObject>
 
 ChatBox::ChatBox(QWidget *parent)
     : ui(new Ui::ChatBox)
+    , m_pWidget(nullptr)
     , m_pPipelineBtnGroup(new QButtonGroup(this))
     , m_pTimer(new QTimer(this))
     , m_pAudioFlushTimer(new QTimer(this))
@@ -17,12 +19,7 @@ ChatBox::ChatBox(QWidget *parent)
 
 ChatBox::~ChatBox()
 {
-    if(m_pAudioFlushTimer)
-    {
-        m_pAudioFlushTimer->stop();
-        delete m_pAudioFlushTimer;
-        m_pAudioFlushTimer = nullptr;
-    }
+    qDebug() << "ChatBox destructor called!";
     delete ui;
 }
 
@@ -30,14 +27,36 @@ QWidget *ChatBox::Init(Bus *parent)
 {
     m_pBus = parent;
 
-    auto wgt = _initUI();
+    m_pWidget = _initUI();
     _initConnectsions();
     _retranslate();
 
     ui->ckLocal->setChecked(true);
     m_pTimer->start(100);
 
-    return wgt;
+    return m_pWidget;
+}
+
+void ChatBox::Shutdown()
+{
+    qDebug() << "ChatBox::Shutdown() called";
+
+    if(m_pTimer)
+        m_pTimer->stop();
+
+    if(m_pAudioFlushTimer)
+        m_pAudioFlushTimer->stop();
+
+    if(m_isAudioStarted && m_audioId != -1)
+        emit m_pBus->SignalAudioCaptureStop(m_audioId);
+
+    m_isAudioStarted = false;
+    {
+        QMutexLocker locker(&m_audioBufferMutex);
+        m_audioBuffer.clear();
+    }
+
+    disconnect(this, nullptr, nullptr, nullptr);
 }
 
 void ChatBox::_slotPing()
@@ -236,6 +255,21 @@ void ChatBox::_slotModelInfoUpdate(const QVector<Bus::ModelInfo> &modelInfos)
     _refreshModelItem();
 }
 
+void ChatBox::_slotMemoryInfoUpdate(const QVector<Bus::MemoryInfo> &memoryInfos)
+{
+    qDebug()
+        << "ChatBox received MemoryInfoUpdate signal from Bus. memory count: "
+        << memoryInfos.size();
+    m_memoryInfos.clear();
+    for(const auto &memory : memoryInfos)
+    {
+        m_memoryInfos.append(memory);
+        qDebug() << "Memory id: " << memory.id;
+    }
+
+    _refreshMemoryItem();
+}
+
 void ChatBox::_slotAudioParamUpdateNtf(const QVector<Bus::AudioParam> &params)
 {
     qDebug()
@@ -319,6 +353,49 @@ void ChatBox::_slotUploadResp(const int errorCode, const QString &filePath)
              << ", filePath:" << filePath;
 }
 
+void ChatBox::_slotRetrieveResp(const int                   errorCode,
+                                const QString              &question,
+                                const int                   topK,
+                                const QString              &memoryId,
+                                const QVector<QJsonObject> &memorys)
+{
+    qDebug() << "Retrieve response received with errorCode:" << errorCode
+             << ", question:" << question << ", topK:" << topK
+             << ", memoryId:" << memoryId
+             << ", memorys count:" << memorys.size()
+             << ", m_waitRetrieveQuestion:" << m_waitRetrieveQuestion;
+    if(question != m_waitRetrieveQuestion)
+        return;
+
+    QString        model = ui->comboModel->currentText();
+    auto           item  = ui->listChat->currentItem();
+    Bus::ModelInfo info;
+    for(auto item : m_modelInfos)
+    {
+        if(item.id != model)
+            continue;
+
+        info = item;
+        break;
+    }
+    auto sessionId = item->data(Qt::UserRole).toLongLong();
+
+    // embedding fail; just query
+    if(errorCode != 0)
+    {
+        info.pipeline = m_pipeline;
+        qDebug() << "retrieve failed query with pipeline:" << info.pipeline;
+        emit m_pBus->SignalQuery(sessionId, question, model, info);
+        return;
+    }
+
+    auto query = _buildPrompt(question, memorys);
+    qDebug() << "build query:" << query;
+    info.pipeline = m_pipeline;
+    qDebug() << "query with pipeline:" << info.pipeline;
+    emit m_pBus->SignalQuery(sessionId, query, model, info);
+}
+
 void ChatBox::_slotBtnStartClicked()
 {
     qDebug() << "Start button clicked. m_isAnswerFinished: "
@@ -334,12 +411,11 @@ void ChatBox::_slotBtnStartClicked()
 
 void ChatBox::_slotBtnAttachClicked()
 {
-    QString filePath =
-        QFileDialog::getOpenFileName(nullptr,
-                                     tr("Select File or Directory"),
-                                     "",
-                                     tr("Select File or Directory(*.*)"));
-    emit m_pBus->SignalUpload(filePath);
+    QString filePath = QFileDialog::getOpenFileName(nullptr,
+                                                    tr("Select File"),
+                                                    "",
+                                                    tr("Select File(*.txt)"));
+    emit    m_pBus->SignalUpload(filePath);
     qDebug() << "Attach button clicked with filePath: " << filePath;
 }
 
@@ -388,24 +464,31 @@ void ChatBox::_refreshUI()
 
 void ChatBox::_refreshModelItem()
 {
-    QString pipeline;
     if(ui->ckLocal->isChecked())
-        pipeline = "local";
+        m_pipeline = "local";
     else if(ui->ckRemote->isChecked())
-        pipeline = "remote";
+        m_pipeline = "remote";
     else if(ui->ckHybrid->isChecked())
-        pipeline = "hybrid";
+        m_pipeline = "hybrid";
     else
-        pipeline = "local";
+        m_pipeline = "local";
 
     ui->comboModel->clear();
     for(auto item : m_modelInfos)
     {
-        if(item.pipeline != pipeline && pipeline != "hybrid")
+        if(item.pipeline != m_pipeline && m_pipeline != "hybrid")
             continue;
 
         ui->comboModel->addItem(item.id);
     }
+}
+
+void ChatBox::_refreshMemoryItem()
+{
+    ui->comboMemory->clear();
+    ui->comboMemory->addItem(tr("None"));
+    for(auto memory : m_memoryInfos)
+        ui->comboMemory->addItem(memory.id);
 }
 
 void ChatBox::_setAnswerFinishState(bool isFinish)
@@ -647,6 +730,10 @@ void ChatBox::_initConnectsions()
             this,
             &ChatBox::_slotModelInfoUpdate);
     connect(m_pBus,
+            &Bus::SignalMemoryInfoUpdateNtf,
+            this,
+            &ChatBox::_slotMemoryInfoUpdate);
+    connect(m_pBus,
             &Bus::SignalAudioParamUpdateNtf,
             this,
             &ChatBox::_slotAudioParamUpdateNtf);
@@ -671,6 +758,10 @@ void ChatBox::_initConnectsions()
             this,
             &ChatBox::_slotStopRecognizeResp);
     connect(m_pBus, &Bus::SignalUploadResp, this, &ChatBox::_slotUploadResp);
+    connect(m_pBus,
+            &Bus::SignalRetrieveResp,
+            this,
+            &ChatBox::_slotRetrieveResp);
 
 
     // init UI connect
@@ -730,9 +821,10 @@ void ChatBox::_query()
         return;
     }
 
-    QString model = ui->comboModel->currentText();
-    QString query = ui->editInput->toPlainText();
-    auto    item  = ui->listChat->currentItem();
+    QString memory = ui->comboMemory->currentText();
+    QString model  = ui->comboModel->currentText();
+    QString query  = ui->editInput->toPlainText();
+    auto    item   = ui->listChat->currentItem();
     if(item == nullptr)
     {
         qDebug() << "No session selected, create new session with query:"
@@ -754,6 +846,18 @@ void ChatBox::_query()
     _writeBuf(msg);
     ui->editInput->clear();
 
+    // embedding
+    if(!memory.isEmpty() && memory != tr("None"))
+    {
+        qDebug() << "Start embedding for sessionId: " << sessionId
+                 << ", memory: " << memory;
+
+        m_waitRetrieveQuestion = query;
+        emit m_pBus->SignalRetrieve(query, 5, memory);
+        return;
+    }
+
+    // query
     Bus::ModelInfo info;
     for(auto item : m_modelInfos)
     {
@@ -761,7 +865,10 @@ void ChatBox::_query()
             continue;
 
         info = item;
+        break;
     }
+    info.pipeline = m_pipeline;
+    qDebug() << "query with pipeline:" << info.pipeline;
     emit m_pBus->SignalQuery(sessionId, query, model, info);
 }
 
@@ -967,4 +1074,60 @@ int ChatBox::_maxBufferSize()
         return 64000 * 2; // 64k
 
     return m_audioParams.first().maxAudioBufferSize;
+}
+
+QString ChatBox::_buildPrompt(const QString              &question,
+                              const QVector<QJsonObject> &memorys,
+                              const QString              &lang)
+{
+    QVector<QString> references;
+    for(auto memory : memorys)
+    {
+        auto chunkId      = memory["chunk_id"].toInt(0);
+        auto data         = memory["data"].toString("");
+        auto startPos     = memory["start_pos"].toInt(0);
+        auto endPos       = memory["end_pos"].toInt(0);
+        auto chunkSize    = memory["chunk_size"].toInt(0);
+        auto filePathName = memory["file_path_name"].toString();
+        auto timestamp    = memory["timestamp"].toString();
+
+        references.append(data);
+        qDebug() << "add data:" << data;
+    }
+
+    QStringList parts;
+    if(lang == "zh_CN")
+    {
+        parts << "请根据以下参考资料回答用户的问题。";
+        parts << "";
+        parts << "参考资料：";
+        for(int i = 0; i < references.size(); ++i)
+        {
+            parts << QString("【文档 %1】").arg(i + 1);
+            parts << references[i];
+            parts << "";
+        }
+
+        parts << QString("用户问题：%1").arg(question);
+        parts << "回答：";
+        return parts.join("\n");
+    } else
+    {
+        parts << "Based on the following references, please answer the user's "
+                 "question.";
+        parts << "";
+        parts << "References:";
+        for(int i = 0; i < references.size(); ++i)
+        {
+            parts << QString("[Document %1]").arg(i + 1);
+            parts << references[i];
+            parts << "";
+        }
+
+        parts << QString("User Question: %1").arg(question);
+        parts << "Answer:";
+        return parts.join("\n");
+    }
+
+    return question;
 }

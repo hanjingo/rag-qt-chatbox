@@ -16,6 +16,7 @@ class PluginInterface
     virtual QString  Icon()                      = 0;
     virtual QString  Version()                   = 0;
     virtual QWidget *Init(Bus *parent = nullptr) = 0;
+    virtual void     Shutdown()                  = 0;
 };
 
 QT_BEGIN_NAMESPACE

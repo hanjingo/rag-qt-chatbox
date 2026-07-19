@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>907</width>
-    <height>617</height>
+    <width>1077</width>
+    <height>692</height>
    </rect>
   </property>
   <property name="minimumSize">
@@ -121,10 +121,32 @@
          <widget class="QComboBox" name="comboModel">
           <property name="minimumSize">
            <size>
-            <width>350</width>
+            <width>300</width>
             <height>0</height>
            </size>
           </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLabel" name="lblMemory">
+          <property name="text">
+           <string>Memory:</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QComboBox" name="comboMemory">
+          <property name="minimumSize">
+           <size>
+            <width>200</width>
+            <height>0</height>
+           </size>
+          </property>
+          <item>
+           <property name="text">
+            <string>None</string>
+           </property>
+          </item>
          </widget>
         </item>
         <item>

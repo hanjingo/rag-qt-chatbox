@@ -30,11 +30,12 @@ class ChatBox : public QObject, public PluginInterface
     explicit ChatBox(QWidget *parent = nullptr);
     ~ChatBox();
 
-    QString  Id() override { return "chatbox-v0.0.1"; }
+    QString  Id() override { return "chatbox-v0.0.2"; }
     QString  Name() override { return "chatbox"; }
     QString  Icon() override { return "ChatBoxIcon.png"; }
-    QString  Version() override { return "0.0.1"; }
+    QString  Version() override { return "0.0.2"; }
     QWidget *Init(Bus *parent = nullptr) override;
+    void     Shutdown() override;
 
   private slots:
     // bus signal
@@ -53,6 +54,7 @@ class ChatBox : public QObject, public PluginInterface
     void _slotGetMessageInfoResp(const int                        errorCode,
                                  const QVector<Bus::MessageInfo> &messages);
     void _slotModelInfoUpdate(const QVector<Bus::ModelInfo> &modelInfos);
+    void _slotMemoryInfoUpdate(const QVector<Bus::MemoryInfo> &memoryInfos);
     void _slotAudioParamUpdateNtf(const QVector<Bus::AudioParam> &params);
     void _slotAudioCaptureStarted(const qint64 id, const QByteArray devId);
     void _slotAudioCaptured(const qint64 id, const QByteArray &data);
@@ -63,6 +65,11 @@ class ChatBox : public QObject, public PluginInterface
                             const double   confidence);
     void _slotStopRecognizeResp(const int errorCode, const qint64 streamId);
     void _slotUploadResp(const int errorCode, const QString &filePath);
+    void _slotRetrieveResp(const int                   errorCode,
+                           const QString              &question,
+                           const int                   topK,
+                           const QString              &memoryId,
+                           const QVector<QJsonObject> &memorys);
 
     // ui signal
     void _slotBtnStartClicked();
@@ -77,6 +84,7 @@ class ChatBox : public QObject, public PluginInterface
   private:
     void _refreshUI();
     void _refreshModelItem();
+    void _refreshMemoryItem();
     void _refreshChatBrowser(const QVector<Bus::MessageInfo> &msgs);
     void _drawQueryRecord(const QString &query);
     void _drawAnswerRecord(const QString &answer, const bool isFinished = true);
@@ -110,8 +118,13 @@ class ChatBox : public QObject, public PluginInterface
     int  _minBufferSize();
     int  _maxBufferSize();
 
+    QString _buildPrompt(const QString              &question,
+                         const QVector<QJsonObject> &memorys,
+                         const QString              &lang = "en");
+
   private:
     Ui::ChatBox  *ui;
+    QWidget      *m_pWidget;
     QButtonGroup *m_pPipelineBtnGroup;
 
     mutable QMutex m_mu;
@@ -120,6 +133,12 @@ class ChatBox : public QObject, public PluginInterface
 
     bool m_isAnswerFinished  = true;
     bool m_isLastMsgFinished = true;
+
+    // pipeline
+    QString m_pipeline = "local";
+
+    // memory
+    QString m_waitRetrieveQuestion;
 
     // audio
     QTimer    *m_pAudioFlushTimer;
@@ -135,6 +154,7 @@ class ChatBox : public QObject, public PluginInterface
 
     QVector<Bus::AudioParam>                  m_audioParams;
     QVector<Bus::ModelInfo>                   m_modelInfos;
+    QVector<Bus::MemoryInfo>                  m_memoryInfos;
     QVector<Bus::MessageInfo>                 m_buf;
     QHash<int64_t, QVector<Bus::MessageInfo>> m_messageInfos;
 };
