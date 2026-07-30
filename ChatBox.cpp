@@ -183,7 +183,7 @@ void ChatBox::_slotQueryResp(const int32_t  errorCode,
     }
 
     auto msg =
-        _convert(-1,
+        _convert(_gen64(),
                  sessionId,
                  "assistant",
                  resp,
@@ -230,10 +230,16 @@ void ChatBox::_slotGetMessageInfoResp(const int errorCode,
         return;
     }
 
-    m_messageInfos.clear();
     for(int i = messages.size() - 1; i >= 0; i--)
     {
         const auto &msg = messages[i];
+        if(m_recvdMsgIds.contains(msg.id))
+        {
+            qDebug() << "Duplicate message received, skipping. id=" << msg.id;
+            continue;
+        }
+
+        m_recvdMsgIds.insert(msg.id);
         qDebug() << "Message: id=" << msg.id << ", sessionId=" << msg.sessionId
                  << ", role=" << msg.role << ", content=" << msg.content;
         _writeBuf(msg);
@@ -436,6 +442,11 @@ void ChatBox::_slotCurrentRowChanged(int row)
         return;
 
     _clearChatBrowser();
+
+    auto sessionId =
+        ui->listChat->currentItem()->data(Qt::UserRole).toLongLong();
+    auto msgs = _readRecvedMsgAll(sessionId);
+    _refreshChatBrowser(msgs);
 }
 
 void ChatBox::_slotPipelineBtnGroupClicked(int id)
@@ -809,6 +820,16 @@ QVector<Bus::MessageInfo> ChatBox::_readBufAll()
     return msgs;
 }
 
+QVector<Bus::MessageInfo> ChatBox::_readRecvedMsgAll(int64_t sessionId)
+{
+    QMutexLocker              locker(&m_mu);
+    QVector<Bus::MessageInfo> msgs;
+    if(m_messageInfos.contains(sessionId))
+        msgs = m_messageInfos[sessionId];
+
+    return msgs;
+}
+
 void ChatBox::_query()
 {
     if(!m_isAnswerFinished)
@@ -837,7 +858,7 @@ void ChatBox::_query()
     auto sessionId = item->data(Qt::UserRole).toLongLong();
     qDebug() << "Start Question for sessionId: " << sessionId;
     auto msg =
-        _convert(-1,
+        _convert(_gen64(),
                  sessionId,
                  "user",
                  query,

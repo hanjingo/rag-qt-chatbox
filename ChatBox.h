@@ -11,6 +11,8 @@
 #include <QMutexLocker>
 #include <QBuffer>
 #include <QByteArray>
+#include <QSet>
+#include <QRandomGenerator>
 
 #include "Bus.h"
 #include "PluginInterface.h"
@@ -96,6 +98,7 @@ class ChatBox : public QObject, public PluginInterface
 
     void                      _writeBuf(const Bus::MessageInfo &msg);
     QVector<Bus::MessageInfo> _readBufAll();
+    QVector<Bus::MessageInfo> _readRecvedMsgAll(int64_t sessionId);
     void                      _setAnswerFinishState(bool isFinish);
     void                      _query();
     void                      _stopQuery();
@@ -121,6 +124,8 @@ class ChatBox : public QObject, public PluginInterface
     QString _buildPrompt(const QString              &question,
                          const QVector<QJsonObject> &memorys,
                          const QString              &lang = "en");
+
+    qint64 _gen64() { return QRandomGenerator::global()->generate64(); }
 
   private:
     Ui::ChatBox  *ui;
@@ -157,6 +162,7 @@ class ChatBox : public QObject, public PluginInterface
     QVector<Bus::MemoryInfo>                  m_memoryInfos;
     QVector<Bus::MessageInfo>                 m_buf;
     QHash<int64_t, QVector<Bus::MessageInfo>> m_messageInfos;
+    QSet<int64_t> m_recvdMsgIds; // to avoid duplicate messages
 };
 
 #endif
