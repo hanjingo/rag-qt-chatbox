@@ -2,6 +2,8 @@
     "PluginId": "chatbox-v0.0.3",
     "Version": "0.0.3",
     "Name": "chatbox",
+    "Icon": "ChatBoxIcon.png",
+    "Platform": 1,
     "Description": "this plugin provides a chatbox widget for the rag-qt framework",
     "Author": "hehehunanchina@live.com",
     "Organization": "rag-qt",
