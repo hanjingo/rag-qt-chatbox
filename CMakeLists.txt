@@ -81,12 +81,17 @@ target_include_directories(chatbox PRIVATE
 
 target_compile_definitions(chatbox PRIVATE CHATBOX_LIBRARY)
 
-# Export all symbols for Windows DLL
 set_target_properties(chatbox PROPERTIES 
     WINDOWS_EXPORT_ALL_SYMBOLS ON
     LIBRARY_OUTPUT_DIRECTORY "${LIBRARY_OUTPUT_DIRECTORY}"
     RUNTIME_OUTPUT_DIRECTORY "${RUNTIME_OUTPUT_DIRECTORY}"
 )
+
+if(APPLE)
+    set_target_properties(chatbox PROPERTIES 
+        SUFFIX ".dylib"
+    )
+endif()
 
 # ----------------------------------------------------------------------------
 # Resource Files
