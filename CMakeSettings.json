@@ -24,6 +24,31 @@
           "type": "PATH"
         }
       ]
+    },
+    {
+      "name": "x64-Release",
+      "generator": "Ninja",
+      "configurationType": "Release",
+      "inheritEnvironments": [
+        "msvc_x64_x64"
+      ],
+      "buildRoot": "${projectDir}\\build\\${name}",
+      "installRoot": "${projectDir}\\install\\${name}",
+      "cmakeCommandArgs": "-DCMAKE_TOOLCHAIN_FILE=${env.VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake -DBUILD_TEST=OFF -DBUILD_BENCH=OFF -DBUILD_EXAMPLE=OFF",
+      "buildCommandArgs": "",
+      "ctestCommandArgs": "",
+      "variables": [
+        {
+          "name": "CMAKE_PREFIX_PATH",
+          "value": "C:/Qt/6.9.3/msvc2022_64",
+          "type": "PATH"
+        },
+        {
+          "name": "Qt6_DIR",
+          "value": "C:/Qt/6.9.3/msvc2022_64/lib/cmake/Qt6",
+          "type": "PATH"
+        }
+      ]
     }
   ]
 }

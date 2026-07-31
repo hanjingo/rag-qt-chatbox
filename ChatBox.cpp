@@ -172,13 +172,22 @@ void ChatBox::_slotQueryResp(const int32_t  errorCode,
         qDebug() << "Failed to get query response for sessionId: " << sessionId
                  << ", errorCode: " << errorCode;
         auto msg = _convert(
-            -1,
+            _gen64(),
             sessionId,
             "assistant",
             tr("Failed to get query response, errorCode: %1").arg(errorCode),
             QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss"),
             true);
         _writeBuf(msg);
+
+        _setAnswerFinishState(true);
+        return;
+    }
+
+    if(_isAnswerFinished())
+    {
+        qDebug() << "Answer already finished for sessionId: " << sessionId
+                 << ", ignoring response.";
         return;
     }
 
@@ -399,20 +408,22 @@ void ChatBox::_slotRetrieveResp(const int                   errorCode,
     qDebug() << "build query:" << query;
     info.pipeline = m_pipeline;
     qDebug() << "query with pipeline:" << info.pipeline;
+    _setAnswerFinishState(false);
     emit m_pBus->SignalQuery(sessionId, query, model, info);
 }
 
 void ChatBox::_slotBtnStartClicked()
 {
-    qDebug() << "Start button clicked. m_isAnswerFinished: "
-             << m_isAnswerFinished;
-    // ui->btnStart->setEnabled(false);
-    // QTimer::singleShot(3000, this, [=]() { ui->btnStart->setEnabled(true); });
+    // protect the button
+    ui->btnStart->setEnabled(false);
+    QTimer::singleShot(1000, this, [=]() { ui->btnStart->setEnabled(true); });
 
-    if(m_isAnswerFinished) // start query
-        _query();
-    else // stop query
-        _stopQuery();
+    qDebug() << "Start button clicked. _isAnswerFinished: "
+             << _isAnswerFinished();
+    if(_isAnswerFinished())
+        _query(); // start query
+    else
+        _stopQuery(); // stop query
 }
 
 void ChatBox::_slotBtnAttachClicked()
@@ -469,7 +480,16 @@ void ChatBox::_refreshUI()
     // refresh answer finish state
     for(auto msg : msgs)
     {
-        _setAnswerFinishState(msg.isFinished);
+        if(!msg.isFinished)
+            continue;
+
+        if(msg.role != "assistant")
+            continue;
+
+        qDebug() << "Found finished answer message. id: " << msg.id
+                 << ", sessionId: " << msg.sessionId;
+        _setAnswerFinishState(true);
+        break;
     }
 }
 
@@ -504,9 +524,11 @@ void ChatBox::_refreshMemoryItem()
 
 void ChatBox::_setAnswerFinishState(bool isFinish)
 {
-    if(m_isAnswerFinished == isFinish)
-        return;
+    QMutexLocker locker(&m_mu);
+    // if(m_isAnswerFinished == isFinish)
+    //     return;
 
+    qDebug() << "Set answer finish state: " << isFinish;
     m_isAnswerFinished = isFinish;
     if(m_isAnswerFinished)
     {
@@ -521,6 +543,12 @@ void ChatBox::_setAnswerFinishState(bool isFinish)
         ui->btnStart->setChecked(true);
         ui->btnStart->setIcon(QIcon(":/icons/pause_check"));
     }
+}
+
+bool ChatBox::_isAnswerFinished()
+{
+    QMutexLocker locker(&m_mu);
+    return m_isAnswerFinished;
 }
 
 void ChatBox::_refreshChatBrowser(const QVector<Bus::MessageInfo> &msgs)
@@ -540,6 +568,9 @@ void ChatBox::_refreshChatBrowser(const QVector<Bus::MessageInfo> &msgs)
     // refresh buffer msg
     for(auto msg : msgs)
     {
+        if(sessionId != msg.sessionId)
+            continue;
+
         if(msg.role == "user")
             _drawQueryRecord(msg.content);
         else
@@ -832,7 +863,7 @@ QVector<Bus::MessageInfo> ChatBox::_readRecvedMsgAll(int64_t sessionId)
 
 void ChatBox::_query()
 {
-    if(!m_isAnswerFinished)
+    if(!_isAnswerFinished())
     {
         qDebug() << "Cannot start query, previous answer is not finished.";
         QMessageBox::warning(
@@ -890,12 +921,13 @@ void ChatBox::_query()
     }
     info.pipeline = m_pipeline;
     qDebug() << "query with pipeline:" << info.pipeline;
+    _setAnswerFinishState(false);
     emit m_pBus->SignalQuery(sessionId, query, model, info);
 }
 
 void ChatBox::_stopQuery()
 {
-    if(m_isAnswerFinished)
+    if(_isAnswerFinished())
     {
         qDebug() << "Cannot stop query, answer is already finished.";
         QMessageBox::warning(
@@ -914,6 +946,10 @@ void ChatBox::_stopQuery()
                              tr("No session selected, cannot stop query."));
         return;
     }
+
+    // clear buffer and set answer finish state
+    _setAnswerFinishState(true);
+    _readBufAll(); // clear buffer
 
     auto sessionId = item->data(Qt::UserRole).toLongLong();
     qDebug() << "Stop Question for sessionId: " << sessionId;
@@ -1019,7 +1055,7 @@ Bus::MessageInfo ChatBox::_convert(const int64_t  msg_id,
                                    const bool     isFinished)
 {
     Bus::MessageInfo msg;
-    msg.id         = -1;
+    msg.id         = msg_id;
     msg.sessionId  = sessionId;
     msg.role       = role;
     msg.content    = content;

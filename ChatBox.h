@@ -100,6 +100,7 @@ class ChatBox : public QObject, public PluginInterface
     QVector<Bus::MessageInfo> _readBufAll();
     QVector<Bus::MessageInfo> _readRecvedMsgAll(int64_t sessionId);
     void                      _setAnswerFinishState(bool isFinish);
+    bool                      _isAnswerFinished();
     void                      _query();
     void                      _stopQuery();
     void                      _startAudioRecord();

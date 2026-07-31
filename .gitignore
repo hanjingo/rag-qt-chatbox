@@ -60,6 +60,8 @@ bin
 
 # vs
 .vs
+CMakeSettings.json
+out
 
 #vcpkg
 vcpkg_installed
