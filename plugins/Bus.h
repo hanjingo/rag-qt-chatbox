@@ -6,6 +6,7 @@
 #include <QVector>
 #include <QAudioFormat>
 #include <QJsonObject>
+#include <QPointer>
 
 #define BUS_VERSION_MAJOR 0
 #define BUS_VERSION_MINOR 0
@@ -79,77 +80,78 @@ class Bus : public QObject
     };
 
   public:
-    static Bus *Instance();
-    static void Version(int8_t &major, int8_t &minor, int8_t &patch);
+    static QPointer<Bus> instance();
+    static void          version(int8_t &major, int8_t &minor, int8_t &patch);
 
   signals:
-    void SignalPong();
-    void SignalPing();
+    void signalPong();
+    void signalPing();
 
-    void SignalLanguageSwitch(const QString &lang);
+    void signalLanguageSwitch(const QString &lang);
 
-    void SignalModelInfoUpdateNtf(const QVector<Bus::ModelInfo> &modelInfos);
-    void SignalMemoryInfoUpdateNtf(const QVector<Bus::MemoryInfo> &memoryInfos);
+    void signalModelInfoUpdateNtf(const QVector<Bus::ModelInfo> &modelInfos);
+    void signalMemoryInfoUpdateNtf(const QVector<Bus::MemoryInfo> &memoryInfos);
 
-    void SignalAudioParamUpdateNtf(const QVector<Bus::AudioParam> &params);
+    void signalAudioParamUpdateNtf(const QVector<Bus::AudioParam> &params);
 
-    void SignalNewSession(const QString &title,
+    void signalNewSession(const QString &title,
                           const QString &content,
                           const QString &model);
-    void SignalNewSessionResp(const int32_t       errorCode,
+    void signalNewSessionResp(const int32_t       errorCode,
                               const Bus::Session &session);
 
-    void SignalGetSession(const int64_t sessionId, int limit);
-    void SignalGetSessionResp(const int                    errorCode,
+    void signalGetSession(const int64_t sessionId, int limit);
+    void signalGetSessionResp(const int                    errorCode,
                               const QVector<Bus::Session> &sessions);
 
-    void SignalDelSessionResp(const int errorCode, const QVector<int64_t> &ids);
+    void signalDelSessionResp(const int errorCode, const QVector<int64_t> &ids);
 
-    void SignalQuery(const int64_t         sessionId,
+    void signalQuery(const int64_t         sessionId,
+                     const int64_t         msgId,
                      const QString        &query,
                      const QString        &model,
                      const Bus::ModelInfo &infos);
-    void SignalQueryResp(const int      errorCode,
+    void signalQueryResp(const int      errorCode,
                          const int64_t  sessionId,
                          const QString &content,
                          const bool     isFinished);
 
-    void SignalStopAnswer(const int64_t sessionId);
-    void SignalStopAnswerResp(const int64_t errorCode, const int64_t sessionId);
+    void signalStopAnswer(const int64_t sessionId);
+    void signalStopAnswerResp(const int64_t errorCode, const int64_t sessionId);
 
-    void SignalGetMessageInfo(const int64_t msgId,
+    void signalGetMessageInfo(const int64_t msgId,
                               const int64_t sessionId,
                               int           limit);
-    void SignalGetMessageInfoResp(const int                        errorCode,
+    void signalGetMessageInfoResp(const int                        errorCode,
                                   const QVector<Bus::MessageInfo> &messages);
 
-    void SignalAudioCaptureStart(const QAudioFormat &format,
+    void signalAudioCaptureStart(const QAudioFormat &format,
                                  const QByteArray   &devId);
-    void SignalAudioCaptureStarted(const qint64 id, const QByteArray &devId);
+    void signalAudioCaptureStarted(const qint64 id, const QByteArray &devId);
 
-    void SignalAudioCaptured(const qint64 id, const QByteArray &data);
+    void signalAudioCaptured(const qint64 id, const QByteArray &data);
 
-    void SignalAudioCaptureStop(const qint64 id);
-    void SignalAudioCaptureStopped(const qint64 id);
+    void signalAudioCaptureStop(const qint64 id);
+    void signalAudioCaptureStopped(const qint64 id);
 
-    void SignalRecognize(const qint64      sessionId,
+    void signalRecognize(const qint64      sessionId,
                          const QByteArray &src,
                          const QString    &translatorId);
-    void SignalRecognizeResp(const int      errorCode,
+    void signalRecognizeResp(const int      errorCode,
                              const QString &transcript,
                              const bool     isFinished,
                              const double   confidence);
 
-    void SignalStopRecognize(const qint64 sessionId);
-    void SignalStopRecognizeResp(const int errorCode, const qint64 sessionId);
+    void signalStopRecognize(const qint64 sessionId);
+    void signalStopRecognizeResp(const int errorCode, const qint64 sessionId);
 
-    void SignalUpload(const QString &filePath);
-    void SignalUploadResp(const int errorCode, const QString &filePath);
+    void signalUpload(const QString &filePath);
+    void signalUploadResp(const int errorCode, const QString &filePath);
 
-    void SignalRetrieve(const QString &question,
+    void signalRetrieve(const QString &question,
                         const int      topK,
                         const QString &memoryId);
-    void SignalRetrieveResp(const int                   errorCode,
+    void signalRetrieveResp(const int                   errorCode,
                             const QString              &question,
                             const int                   topK,
                             const QString              &memoryId,

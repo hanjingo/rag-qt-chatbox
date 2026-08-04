@@ -50,6 +50,7 @@ class ChatBox : public QObject, public PluginInterface
     void _slotDelSessionResp(const int errorCode, const QVector<int64_t> &ids);
     void _slotQueryResp(const int32_t  errorCode,
                         const int64_t  sessionId,
+                        const int64_t  msgId,
                         const QString &resp,
                         const bool     isFinished);
     void _slotStopAnswerResp(const int64_t errorCode, const int64_t sessionId);
@@ -122,6 +123,10 @@ class ChatBox : public QObject, public PluginInterface
     int  _minBufferSize();
     int  _maxBufferSize();
 
+    void _addAttachedFile(const QString &filePath);
+    void _removeAttachedFile(const QString &filePath);
+    void _clearAttachedFiles();
+
     QString _buildPrompt(const QString              &question,
                          const QVector<QJsonObject> &memorys,
                          const QString              &lang = "en");
@@ -144,7 +149,12 @@ class ChatBox : public QObject, public PluginInterface
     QString m_pipeline = "local";
 
     // memory
+    qint64  m_waitRetrieveSessionId = 0;
+    qint64  m_waitRetrieveMsgId     = 0;
     QString m_waitRetrieveQuestion;
+
+    // attach file
+    QVector<QString> m_attachedFiles;
 
     // audio
     QTimer    *m_pAudioFlushTimer;

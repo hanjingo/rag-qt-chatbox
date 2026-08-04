@@ -92,6 +92,44 @@
        <number>0</number>
       </property>
       <item>
+       <widget class="QListWidget" name="listAttachFiles">
+        <property name="maximumSize">
+         <size>
+          <width>16777215</width>
+          <height>45</height>
+         </size>
+        </property>
+        <property name="styleSheet">
+         <string notr="true">
+                      QListWidget {
+                          background-color: #f5f5f5;
+                          border: 1px solid #cccccc;
+                          border-radius: 4px;
+                      }
+                      QListWidget::item {
+                          padding: 4px 8px;
+                      }
+                      QListWidget::item:selected {
+                          background-color: #46B8F4;
+                          color: white;
+                      }
+                  </string>
+        </property>
+        <property name="movement">
+         <enum>QListView::Movement::Static</enum>
+        </property>
+        <property name="flow">
+         <enum>QListView::Flow::LeftToRight</enum>
+        </property>
+        <property name="viewMode">
+         <enum>QListView::ViewMode::ListMode</enum>
+        </property>
+        <property name="wrapping" stdset="0">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+      <item>
        <widget class="QTextEdit" name="editInput"/>
       </item>
       <item>

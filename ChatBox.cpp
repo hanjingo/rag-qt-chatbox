@@ -48,7 +48,7 @@ void ChatBox::Shutdown()
         m_pAudioFlushTimer->stop();
 
     if(m_isAudioStarted && m_audioId != -1)
-        emit m_pBus->SignalAudioCaptureStop(m_audioId);
+        emit m_pBus->signalAudioCaptureStop(m_audioId);
 
     m_isAudioStarted = false;
     {
@@ -62,7 +62,7 @@ void ChatBox::Shutdown()
 void ChatBox::_slotPing()
 {
     qDebug() << "ChatBox received Ping signal from Bus.";
-    emit m_pBus->SignalPong();
+    emit m_pBus->signalPong();
 }
 
 void ChatBox::_slotLanguageSwitch(const QString &lang)
@@ -94,7 +94,7 @@ void ChatBox::_slotNewSessionResp(const int32_t       errorCode,
     ui->listChat->setCurrentItem(item);
     ui->listChat->currentItem()->setData(
         Qt::UserRole,
-        QVariant::fromValue(static_cast<qlonglong>(session.id)));
+        QVariant::fromValue<qlonglong>(session.id));
 
     // query question
     _query();
@@ -119,7 +119,7 @@ void ChatBox::_slotGetSessionResp(const int                    errorCode,
         ui->listChat->setCurrentItem(item);
         ui->listChat->currentItem()->setData(
             Qt::UserRole,
-            QVariant::fromValue(static_cast<qlonglong>(session.id)));
+            QVariant::fromValue<qlonglong>(session.id));
     }
 }
 
@@ -138,7 +138,7 @@ void ChatBox::_slotDelSessionResp(const int               errorCode,
     auto currentItem = ui->listChat->currentItem();
     if(currentItem)
     {
-        auto currentSessionId = currentItem->data(Qt::UserRole).toLongLong();
+        auto currentSessionId = currentItem->data(Qt::UserRole).value<qint64>();
         if(ids.contains(currentSessionId))
             _clearChatBrowser();
     }
@@ -150,7 +150,7 @@ void ChatBox::_slotDelSessionResp(const int               errorCode,
         if(item == nullptr)
             continue;
 
-        auto sessionId = item->data(Qt::UserRole).toLongLong();
+        qint64 sessionId = item->data(Qt::UserRole).value<qint64>();
         if(ids.contains(sessionId))
         {
             qDebug() << "Delete session with id: " << sessionId;
@@ -161,11 +161,12 @@ void ChatBox::_slotDelSessionResp(const int               errorCode,
 
 void ChatBox::_slotQueryResp(const int32_t  errorCode,
                              const int64_t  sessionId,
+                             const int64_t  msgId,
                              const QString &resp,
                              const bool     isFinished)
 {
     qDebug() << "ChatBox received QueryResp signal from Bus. sessionId: "
-             << sessionId << ", resp: " << resp
+             << sessionId << ", msgId: " << msgId << ", resp: " << resp
              << ", isFinished: " << isFinished;
     if(errorCode != 0)
     {
@@ -192,7 +193,7 @@ void ChatBox::_slotQueryResp(const int32_t  errorCode,
     }
 
     auto msg =
-        _convert(_gen64(),
+        _convert(msgId,
                  sessionId,
                  "assistant",
                  resp,
@@ -393,14 +394,15 @@ void ChatBox::_slotRetrieveResp(const int                   errorCode,
         info = item;
         break;
     }
-    auto sessionId = item->data(Qt::UserRole).toLongLong();
+    qint64 sessionId = m_waitRetrieveSessionId;
+    qint64 msgId     = m_waitRetrieveMsgId;
 
     // embedding fail; just query
     if(errorCode != 0)
     {
         info.pipeline = m_pipeline;
         qDebug() << "retrieve failed query with pipeline:" << info.pipeline;
-        emit m_pBus->SignalQuery(sessionId, question, model, info);
+        emit m_pBus->signalQuery(sessionId, msgId, question, model, info);
         return;
     }
 
@@ -409,7 +411,7 @@ void ChatBox::_slotRetrieveResp(const int                   errorCode,
     info.pipeline = m_pipeline;
     qDebug() << "query with pipeline:" << info.pipeline;
     _setAnswerFinishState(false);
-    emit m_pBus->SignalQuery(sessionId, query, model, info);
+    emit m_pBus->signalQuery(sessionId, msgId, query, model, info);
 }
 
 void ChatBox::_slotBtnStartClicked()
@@ -428,12 +430,22 @@ void ChatBox::_slotBtnStartClicked()
 
 void ChatBox::_slotBtnAttachClicked()
 {
-    QString filePath = QFileDialog::getOpenFileName(nullptr,
-                                                    tr("Select File"),
-                                                    "",
-                                                    tr("Select File(*.txt)"));
-    emit    m_pBus->SignalUpload(filePath);
-    qDebug() << "Attach button clicked with filePath: " << filePath;
+    QStringList filePaths = QFileDialog::getOpenFileNames(
+        nullptr,
+        tr("Select Files"),
+        "",
+        tr("All Files (*.*);;Text Files (*.txt);;Images (*.png *.jpg *.jpeg "
+           "*.bmp);;PDF Files (*.pdf)"));
+
+    if(filePaths.isEmpty())
+        return;
+
+    for(const QString &filePath : filePaths)
+    {
+        _addAttachedFile(filePath);
+        emit m_pBus->signalUpload(filePath);
+        qDebug() << "Attach button clicked with filePath: " << filePath;
+    }
 }
 
 void ChatBox::_slotBtnAudioStartClicked()
@@ -454,8 +466,8 @@ void ChatBox::_slotCurrentRowChanged(int row)
 
     _clearChatBrowser();
 
-    auto sessionId =
-        ui->listChat->currentItem()->data(Qt::UserRole).toLongLong();
+    qint64 sessionId =
+        ui->listChat->currentItem()->data(Qt::UserRole).value<qint64>();
     auto msgs = _readRecvedMsgAll(sessionId);
     _refreshChatBrowser(msgs);
 }
@@ -553,11 +565,11 @@ bool ChatBox::_isAnswerFinished()
 
 void ChatBox::_refreshChatBrowser(const QVector<Bus::MessageInfo> &msgs)
 {
-    auto sessionId = -1;
+    qint64 sessionId = -1;
     if(ui->listChat->currentItem())
     {
         sessionId =
-            ui->listChat->currentItem()->data(Qt::UserRole).toLongLong();
+            ui->listChat->currentItem()->data(Qt::UserRole).value<qint64>();
     }
     if(sessionId == -1)
     {
@@ -568,6 +580,11 @@ void ChatBox::_refreshChatBrowser(const QVector<Bus::MessageInfo> &msgs)
     // refresh buffer msg
     for(auto msg : msgs)
     {
+        qDebug() << "Refresh chat browser with selected sessionId=" << sessionId
+                 << ", message: id=" << msg.id
+                 << ", sessionId=" << msg.sessionId << ", role=" << msg.role
+                 << ", content=" << msg.content
+                 << ", isFinished=" << msg.isFinished;
         if(sessionId != msg.sessionId)
             continue;
 
@@ -723,6 +740,8 @@ QWidget *ChatBox::_initUI()
     ui->btnAudioStart->setEnabled(true);
     ui->btnAudioStart->setIcon(QIcon(":/icons/audio_norm"));
 
+    ui->listAttachFiles->hide();
+
     m_pPipelineBtnGroup->addButton(ui->ckLocal, 0);
     m_pPipelineBtnGroup->addButton(ui->ckRemote, 1);
     m_pPipelineBtnGroup->addButton(ui->ckHybrid, 2);
@@ -737,71 +756,71 @@ QWidget *ChatBox::_initUI()
 void ChatBox::_initConnectsions()
 {
     // init BUS connect
-    connect(m_pBus, &Bus::SignalPing, this, &ChatBox::_slotPing);
+    connect(m_pBus, &Bus::signalPing, this, &ChatBox::_slotPing);
     connect(m_pBus,
-            &Bus::SignalLanguageSwitch,
+            &Bus::signalLanguageSwitch,
             this,
             &ChatBox::_slotLanguageSwitch);
     connect(m_pBus,
-            &Bus::SignalNewSessionResp,
+            &Bus::signalNewSessionResp,
             this,
             &ChatBox::_slotNewSessionResp);
     connect(m_pBus,
-            &Bus::SignalGetSessionResp,
+            &Bus::signalGetSessionResp,
             this,
             &ChatBox::_slotGetSessionResp);
     connect(m_pBus,
-            &Bus::SignalDelSessionResp,
+            &Bus::signalDelSessionResp,
             this,
             &ChatBox::_slotDelSessionResp);
     connect(m_pBus,
-            &Bus::SignalQueryResp,
+            &Bus::signalQueryResp,
             this,
             &ChatBox::_slotQueryResp,
             Qt::QueuedConnection);
     connect(m_pBus,
-            &Bus::SignalStopAnswerResp,
+            &Bus::signalStopAnswerResp,
             this,
             &ChatBox::_slotStopAnswerResp);
     connect(m_pBus,
-            &Bus::SignalGetMessageInfoResp,
+            &Bus::signalGetMessageInfoResp,
             this,
             &ChatBox::_slotGetMessageInfoResp);
     connect(m_pBus,
-            &Bus::SignalModelInfoUpdateNtf,
+            &Bus::signalModelInfoUpdateNtf,
             this,
             &ChatBox::_slotModelInfoUpdate);
     connect(m_pBus,
-            &Bus::SignalMemoryInfoUpdateNtf,
+            &Bus::signalMemoryInfoUpdateNtf,
             this,
             &ChatBox::_slotMemoryInfoUpdate);
     connect(m_pBus,
-            &Bus::SignalAudioParamUpdateNtf,
+            &Bus::signalAudioParamUpdateNtf,
             this,
             &ChatBox::_slotAudioParamUpdateNtf);
     connect(m_pBus,
-            &Bus::SignalAudioCaptureStarted,
+            &Bus::signalAudioCaptureStarted,
             this,
             &ChatBox::_slotAudioCaptureStarted);
     connect(m_pBus,
-            &Bus::SignalAudioCaptured,
+            &Bus::signalAudioCaptured,
             this,
             &ChatBox::_slotAudioCaptured);
     connect(m_pBus,
-            &Bus::SignalAudioCaptureStopped,
+            &Bus::signalAudioCaptureStopped,
             this,
             &ChatBox::_slotAudioCaptureStopped);
     connect(m_pBus,
-            &Bus::SignalRecognizeResp,
+            &Bus::signalRecognizeResp,
             this,
             &ChatBox::_slotRecognizeResp);
     connect(m_pBus,
-            &Bus::SignalStopRecognizeResp,
+            &Bus::signalStopRecognizeResp,
             this,
             &ChatBox::_slotStopRecognizeResp);
-    connect(m_pBus, &Bus::SignalUploadResp, this, &ChatBox::_slotUploadResp);
+    connect(m_pBus, &Bus::signalUploadResp, this, &ChatBox::_slotUploadResp);
     connect(m_pBus,
-            &Bus::SignalRetrieveResp,
+            &Bus::signalRetrieveResp,
             this,
             &ChatBox::_slotRetrieveResp);
 
@@ -882,19 +901,22 @@ void ChatBox::_query()
         qDebug() << "No session selected, create new session with query:"
                  << query;
         QString title = query;
-        emit    m_pBus->SignalNewSession(title, query, model);
+        emit    m_pBus->signalNewSession(title, query, model);
         return;
     }
 
-    auto sessionId = item->data(Qt::UserRole).toLongLong();
-    qDebug() << "Start Question for sessionId: " << sessionId;
-    auto msg =
-        _convert(_gen64(),
+    qint64 sessionId = item->data(Qt::UserRole).value<qint64>();
+    auto   msgId     = _gen64();
+    auto   msg =
+        _convert(msgId,
                  sessionId,
                  "user",
                  query,
                  QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss"),
                  true);
+    qDebug() << "Start Question for sessionId: " << sessionId
+             << ", msgId: " << msgId << ", query: " << query
+             << ", model: " << model << ", memory: " << memory;
     _writeBuf(msg);
     ui->editInput->clear();
 
@@ -904,8 +926,10 @@ void ChatBox::_query()
         qDebug() << "Start embedding for sessionId: " << sessionId
                  << ", memory: " << memory;
 
-        m_waitRetrieveQuestion = query;
-        emit m_pBus->SignalRetrieve(query, 5, memory);
+        m_waitRetrieveSessionId = sessionId;
+        m_waitRetrieveMsgId     = msgId;
+        m_waitRetrieveQuestion  = query;
+        emit m_pBus->signalRetrieve(query, 5, memory);
         return;
     }
 
@@ -920,9 +944,8 @@ void ChatBox::_query()
         break;
     }
     info.pipeline = m_pipeline;
-    qDebug() << "query with pipeline:" << info.pipeline;
     _setAnswerFinishState(false);
-    emit m_pBus->SignalQuery(sessionId, query, model, info);
+    emit m_pBus->signalQuery(sessionId, msgId, query, model, info);
 }
 
 void ChatBox::_stopQuery()
@@ -951,9 +974,9 @@ void ChatBox::_stopQuery()
     _setAnswerFinishState(true);
     _readBufAll(); // clear buffer
 
-    auto sessionId = item->data(Qt::UserRole).toLongLong();
+    qint64 sessionId = item->data(Qt::UserRole).value<qint64>();
     qDebug() << "Stop Question for sessionId: " << sessionId;
-    emit m_pBus->SignalStopAnswer(sessionId);
+    emit m_pBus->signalStopAnswer(sessionId);
 }
 
 void ChatBox::_startAudioRecord()
@@ -972,7 +995,7 @@ void ChatBox::_startAudioRecord()
     format.setSampleRate(16000);
     format.setChannelCount(1);
     format.setSampleFormat(QAudioFormat::Int16);
-    emit m_pBus->SignalAudioCaptureStart(format, QByteArray());
+    emit m_pBus->signalAudioCaptureStart(format, QByteArray());
     qDebug() << "Start Audio Record with SampleRate:" << format.sampleRate()
              << ", ChannelCount:" << format.channelCount()
              << ", SampleFormat:Int16";
@@ -986,7 +1009,7 @@ void ChatBox::_stopAudioRecord()
         return;
     }
 
-    emit m_pBus->SignalAudioCaptureStop(m_audioId);
+    emit m_pBus->signalAudioCaptureStop(m_audioId);
     qDebug() << "Stop Audio Record with audioId:" << m_audioId;
 }
 
@@ -1011,12 +1034,17 @@ void ChatBox::_setAudioRecordState(bool isStarted, qint64 id)
 
         _flushAudioBuffer();
 
-        emit m_pBus->SignalStopRecognize(id);
+        emit m_pBus->signalStopRecognize(id);
     }
 }
 
 void ChatBox::_addMsgRecord(const Bus::MessageInfo &msg)
 {
+    qDebug() << "Add message record: id=" << msg.id
+             << ", sessionId=" << msg.sessionId << ", role=" << msg.role
+             << ", content=" << msg.content
+             << ", isFinished=" << msg.isFinished;
+    m_recvdMsgIds.insert(msg.id);
     if(!m_messageInfos.contains(msg.sessionId))
     {
         m_messageInfos[msg.sessionId] = QVector<Bus::MessageInfo>();
@@ -1085,9 +1113,7 @@ void ChatBox::_flushAudioBuffer(bool force)
     qDebug() << "Flushing audio buffer, size:" << m_audioBuffer.size()
              << ", force:" << force;
 
-    emit m_pBus->SignalRecognize(m_audioId,
-                                 m_audioBuffer,
-                                 "ggml/ggml-small-q8_0");
+    emit m_pBus->signalRecognize(m_audioId, m_audioBuffer, "");
     m_audioBuffer.clear();
 }
 
@@ -1131,6 +1157,96 @@ int ChatBox::_maxBufferSize()
         return 64000 * 2; // 64k
 
     return m_audioParams.first().maxAudioBufferSize;
+}
+
+void ChatBox::_addAttachedFile(const QString &filePath)
+{
+    if(m_attachedFiles.contains(filePath))
+    {
+        qDebug() << "File already attached: " << filePath;
+        return;
+    }
+
+    m_attachedFiles.append(filePath);
+    QWidget     *itemWidget = new QWidget(ui->listAttachFiles);
+    QHBoxLayout *layout     = new QHBoxLayout(itemWidget);
+    layout->setContentsMargins(4, 2, 4, 2);
+    layout->setSpacing(4);
+
+    QLabel   *iconLabel = new QLabel(itemWidget);
+    QFileInfo fileInfo(filePath);
+    QIcon     fileIcon;
+    if(fileInfo.suffix().toLower() == "txt")
+        fileIcon = QIcon(":/icons/file_txt");
+    else if(fileInfo.suffix().toLower() == "pdf")
+        fileIcon = QIcon(":/icons/file_pdf");
+    else if(fileInfo.suffix().toLower() == "png"
+            || fileInfo.suffix().toLower() == "jpg"
+            || fileInfo.suffix().toLower() == "jpeg")
+        fileIcon = QIcon(":/icons/file_image");
+    else
+        fileIcon = QIcon(":/icons/file");
+    iconLabel->setPixmap(fileIcon.pixmap(24, 24));
+    layout->addWidget(iconLabel);
+
+    QLabel *nameLabel = new QLabel(fileInfo.fileName(), itemWidget);
+    nameLabel->setStyleSheet("QLabel { font-size: 12px; }");
+    layout->addWidget(nameLabel);
+
+    QLabel *sizeLabel =
+        new QLabel(tr("%1 KB").arg(fileInfo.size() / 1024.0, 0, 'f', 1),
+                   itemWidget);
+    sizeLabel->setStyleSheet("QLabel { color: #888888; font-size: 11px; }");
+    layout->addWidget(sizeLabel);
+
+    QPushButton *delBtn = new QPushButton("×", itemWidget);
+    delBtn->setFixedSize(20, 20);
+    delBtn->setStyleSheet("QPushButton {"
+                          "   background-color: transparent;"
+                          "   color: #999999;"
+                          "   border: none;"
+                          "   font-size: 16px;"
+                          "   font-weight: bold;"
+                          "}"
+                          "QPushButton:hover {"
+                          "   color: #ff0000;"
+                          "}");
+    connect(delBtn, &QPushButton::clicked, this, [this, filePath]() {
+        _removeAttachedFile(filePath);
+    });
+    layout->addWidget(delBtn);
+    layout->addStretch();
+
+    QListWidgetItem *item = new QListWidgetItem(ui->listAttachFiles);
+    item->setSizeHint(itemWidget->sizeHint());
+    ui->listAttachFiles->addItem(item);
+    ui->listAttachFiles->setItemWidget(item, itemWidget);
+    ui->listAttachFiles->setVisible(m_attachedFiles.size() > 0);
+}
+
+void ChatBox::_removeAttachedFile(const QString &filePath)
+{
+    int index = m_attachedFiles.indexOf(filePath);
+    if(index == -1)
+        return;
+
+    m_attachedFiles.removeAt(index);
+    QListWidgetItem *item = ui->listAttachFiles->takeItem(index);
+    if(item)
+    {
+        delete item->listWidget();
+        delete item;
+    }
+
+    ui->listAttachFiles->setVisible(m_attachedFiles.size() > 0);
+    qDebug() << "Removed attached file: " << filePath;
+}
+
+void ChatBox::_clearAttachedFiles()
+{
+    m_attachedFiles.clear();
+    ui->listAttachFiles->clear();
+    ui->listAttachFiles->setVisible(false);
 }
 
 QString ChatBox::_buildPrompt(const QString              &question,
