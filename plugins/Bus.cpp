@@ -2,8 +2,8 @@
 
 QPointer<Bus> Bus::instance()
 {
-    static QPointer<Bus> instance = new Bus();
-    return instance;
+    static QPointer<Bus> inst = new Bus();
+    return inst;
 }
 
 void Bus::version(int8_t &major, int8_t &minor, int8_t &patch)

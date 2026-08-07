@@ -32,10 +32,10 @@ class ChatBox : public QObject, public PluginInterface
     explicit ChatBox(QWidget *parent = nullptr);
     ~ChatBox();
 
-    QString  Id() override { return "chatbox-v0.0.2"; }
+    QString  Id() override { return "chatbox-v0.0.3"; }
     QString  Name() override { return "chatbox"; }
     QString  Icon() override { return "ChatBoxIcon.png"; }
-    QString  Version() override { return "0.0.2"; }
+    QString  Version() override { return "0.0.3"; }
     QWidget *Init(Bus *parent = nullptr) override;
     void     Shutdown() override;
 
@@ -54,8 +54,8 @@ class ChatBox : public QObject, public PluginInterface
                         const QString &resp,
                         const bool     isFinished);
     void _slotStopAnswerResp(const int64_t errorCode, const int64_t sessionId);
-    void _slotGetMessageInfoResp(const int                        errorCode,
-                                 const QVector<Bus::MessageInfo> &messages);
+    void _slotGetChatMessageResp(const int                        errorCode,
+                                 const QVector<Bus::ChatMessage> &messages);
     void _slotModelInfoUpdate(const QVector<Bus::ModelInfo> &modelInfos);
     void _slotMemoryInfoUpdate(const QVector<Bus::MemoryInfo> &memoryInfos);
     void _slotAudioParamUpdateNtf(const QVector<Bus::AudioParam> &params);
@@ -67,7 +67,7 @@ class ChatBox : public QObject, public PluginInterface
                             const bool     isFinished,
                             const double   confidence);
     void _slotStopRecognizeResp(const int errorCode, const qint64 streamId);
-    void _slotUploadResp(const int errorCode, const QString &filePath);
+    void _slotUploadResp(const int errorCode, const QString &hash);
     void _slotRetrieveResp(const int                   errorCode,
                            const QString              &question,
                            const int                   topK,
@@ -88,7 +88,7 @@ class ChatBox : public QObject, public PluginInterface
     void _refreshUI();
     void _refreshModelItem();
     void _refreshMemoryItem();
-    void _refreshChatBrowser(const QVector<Bus::MessageInfo> &msgs);
+    void _refreshChatBrowser(const QVector<Bus::ChatMessage> &msgs);
     void _drawQueryRecord(const QString &query);
     void _drawAnswerRecord(const QString &answer, const bool isFinished = true);
     void _clearChatBrowser();
@@ -97,9 +97,9 @@ class ChatBox : public QObject, public PluginInterface
     QWidget *_initUI();
     void     _initConnectsions();
 
-    void                      _writeBuf(const Bus::MessageInfo &msg);
-    QVector<Bus::MessageInfo> _readBufAll();
-    QVector<Bus::MessageInfo> _readRecvedMsgAll(int64_t sessionId);
+    void                      _writeBuf(const Bus::ChatMessage &msg);
+    QVector<Bus::ChatMessage> _readBufAll();
+    QVector<Bus::ChatMessage> _readRecvedMsgAll(int64_t sessionId);
     void                      _setAnswerFinishState(bool isFinish);
     bool                      _isAnswerFinished();
     void                      _query();
@@ -107,8 +107,8 @@ class ChatBox : public QObject, public PluginInterface
     void                      _startAudioRecord();
     void                      _stopAudioRecord();
     void             _setAudioRecordState(bool isStarted, qint64 id = -1);
-    void             _addMsgRecord(const Bus::MessageInfo &msg);
-    Bus::MessageInfo _convert(const int64_t  msg_id,
+    void             _addMsgRecord(const Bus::ChatMessage &msg);
+    Bus::ChatMessage _convert(const int64_t  msg_id,
                               const int64_t  sessionId,
                               const QString &role,
                               const QString &content,
@@ -171,8 +171,8 @@ class ChatBox : public QObject, public PluginInterface
     QVector<Bus::AudioParam>                  m_audioParams;
     QVector<Bus::ModelInfo>                   m_modelInfos;
     QVector<Bus::MemoryInfo>                  m_memoryInfos;
-    QVector<Bus::MessageInfo>                 m_buf;
-    QHash<int64_t, QVector<Bus::MessageInfo>> m_messageInfos;
+    QVector<Bus::ChatMessage>                 m_buf;
+    QHash<int64_t, QVector<Bus::ChatMessage>> m_messageInfos;
     QSet<int64_t> m_recvdMsgIds; // to avoid duplicate messages
 };
 

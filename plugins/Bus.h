@@ -69,6 +69,9 @@ class Bus : public QObject
         QString version;
         QString timestamp;
         qint32  platform;
+
+        // external file path, used for staging plugin info before loading
+        QString filePath;
     };
 
     struct AudioParam
@@ -113,17 +116,18 @@ class Bus : public QObject
                      const Bus::ModelInfo &infos);
     void signalQueryResp(const int      errorCode,
                          const int64_t  sessionId,
+                         const int64_t  msgId,
                          const QString &content,
                          const bool     isFinished);
 
     void signalStopAnswer(const int64_t sessionId);
     void signalStopAnswerResp(const int64_t errorCode, const int64_t sessionId);
 
-    void signalGetMessageInfo(const int64_t msgId,
+    void signalGetChatMessage(const int64_t msgId,
                               const int64_t sessionId,
                               int           limit);
-    void signalGetMessageInfoResp(const int                        errorCode,
-                                  const QVector<Bus::MessageInfo> &messages);
+    void signalGetChatMessageResp(const int                        errorCode,
+                                  const QVector<Bus::ChatMessage> &messages);
 
     void signalAudioCaptureStart(const QAudioFormat &format,
                                  const QByteArray   &devId);

@@ -222,10 +222,10 @@ void ChatBox::_slotStopAnswerResp(const int64_t errorCode,
     }
 }
 
-void ChatBox::_slotGetMessageInfoResp(const int errorCode,
-                                      const QVector<Bus::MessageInfo> &messages)
+void ChatBox::_slotGetChatMessageResp(const int errorCode,
+                                      const QVector<Bus::ChatMessage> &messages)
 {
-    qDebug() << "ChatBox received GetMessageInfoResp signal from Bus. message "
+    qDebug() << "ChatBox received GetChatMessageResp signal from Bus. message "
                 "count: "
              << messages.size();
     if(errorCode != 0)
@@ -363,10 +363,10 @@ void ChatBox::_slotStopRecognizeResp(const int errorCode, const qint64 streamId)
              << ", streamId:" << streamId;
 }
 
-void ChatBox::_slotUploadResp(const int errorCode, const QString &filePath)
+void ChatBox::_slotUploadResp(const int errorCode, const QString &hash)
 {
     qDebug() << "Upload response received with errorCode:" << errorCode
-             << ", filePath:" << filePath;
+             << ", filePath:" << hash;
 }
 
 void ChatBox::_slotRetrieveResp(const int                   errorCode,
@@ -563,7 +563,7 @@ bool ChatBox::_isAnswerFinished()
     return m_isAnswerFinished;
 }
 
-void ChatBox::_refreshChatBrowser(const QVector<Bus::MessageInfo> &msgs)
+void ChatBox::_refreshChatBrowser(const QVector<Bus::ChatMessage> &msgs)
 {
     qint64 sessionId = -1;
     if(ui->listChat->currentItem())
@@ -783,9 +783,9 @@ void ChatBox::_initConnectsions()
             this,
             &ChatBox::_slotStopAnswerResp);
     connect(m_pBus,
-            &Bus::signalGetMessageInfoResp,
+            &Bus::signalGetChatMessageResp,
             this,
-            &ChatBox::_slotGetMessageInfoResp);
+            &ChatBox::_slotGetChatMessageResp);
     connect(m_pBus,
             &Bus::signalModelInfoUpdateNtf,
             this,
@@ -855,25 +855,25 @@ void ChatBox::_initConnectsions()
             &ChatBox::_slotFlushAudioBuffer);
 }
 
-void ChatBox::_writeBuf(const Bus::MessageInfo &msg)
+void ChatBox::_writeBuf(const Bus::ChatMessage &msg)
 {
     QMutexLocker locker(&m_mu);
     m_buf.append(msg);
 }
 
-QVector<Bus::MessageInfo> ChatBox::_readBufAll()
+QVector<Bus::ChatMessage> ChatBox::_readBufAll()
 {
     QMutexLocker              locker(&m_mu);
-    QVector<Bus::MessageInfo> msgs;
+    QVector<Bus::ChatMessage> msgs;
     msgs = m_buf;
     m_buf.clear();
     return msgs;
 }
 
-QVector<Bus::MessageInfo> ChatBox::_readRecvedMsgAll(int64_t sessionId)
+QVector<Bus::ChatMessage> ChatBox::_readRecvedMsgAll(int64_t sessionId)
 {
     QMutexLocker              locker(&m_mu);
-    QVector<Bus::MessageInfo> msgs;
+    QVector<Bus::ChatMessage> msgs;
     if(m_messageInfos.contains(sessionId))
         msgs = m_messageInfos[sessionId];
 
@@ -1038,7 +1038,7 @@ void ChatBox::_setAudioRecordState(bool isStarted, qint64 id)
     }
 }
 
-void ChatBox::_addMsgRecord(const Bus::MessageInfo &msg)
+void ChatBox::_addMsgRecord(const Bus::ChatMessage &msg)
 {
     qDebug() << "Add message record: id=" << msg.id
              << ", sessionId=" << msg.sessionId << ", role=" << msg.role
@@ -1047,7 +1047,7 @@ void ChatBox::_addMsgRecord(const Bus::MessageInfo &msg)
     m_recvdMsgIds.insert(msg.id);
     if(!m_messageInfos.contains(msg.sessionId))
     {
-        m_messageInfos[msg.sessionId] = QVector<Bus::MessageInfo>();
+        m_messageInfos[msg.sessionId] = QVector<Bus::ChatMessage>();
     }
 
     if(m_messageInfos[msg.sessionId].empty())
@@ -1075,14 +1075,14 @@ void ChatBox::_addMsgRecord(const Bus::MessageInfo &msg)
     m_isLastMsgFinished = msg.isFinished;
 }
 
-Bus::MessageInfo ChatBox::_convert(const int64_t  msg_id,
+Bus::ChatMessage ChatBox::_convert(const int64_t  msg_id,
                                    const int64_t  sessionId,
                                    const QString &role,
                                    const QString &content,
                                    const QString &timestamp,
                                    const bool     isFinished)
 {
-    Bus::MessageInfo msg;
+    Bus::ChatMessage msg;
     msg.id         = msg_id;
     msg.sessionId  = sessionId;
     msg.role       = role;
